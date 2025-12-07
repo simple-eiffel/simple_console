@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>simple_console - Console Manipulation for Eiffel</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="icon" type="image/png" href="images/logo.png">
+</head>
+<body>
+    <header>
+        <div class="logo-container">
+            <img src="images/logo.png" alt="simple_* logo" class="logo">
+        </div>
+        <h1>simple_console</h1>
+        <p class="tagline">Console Manipulation for Eiffel</p>
+        <div class="badges">
+            <span class="badge badge-rfc">Foundation Layer</span>
+            <span class="badge badge-version">v1.0.0</span>
+            <span class="badge badge-license">MIT</span>
+        </div>
+    </header>
+
+    <nav>
+        <ul>
+            <li><a href="#overview">Overview</a></li>
+            <li><a href="#quick-start">Quick Start</a></li>
+            <li><a href="#features">Features</a></li>
+            <li><a href="#api">API Reference</a></li>
+            <li><a href="https://github.com/ljr1981/simple_console">GitHub</a></li>
+        </ul>
+    </nav>
+
+    <main>
+        <section id="overview">
+            <h2>Overview</h2>
+            <p>
+                <strong>simple_console</strong> provides SCOOP-compatible console manipulation for Eiffel
+                applications. It wraps Win32 Console APIs through a clean C interface, enabling colored
+                text output, cursor control, and screen operations without threading complications.
+            </p>
+            <p>
+                Part of the <strong>simple_*</strong> ecosystem of focused, single-purpose Eiffel libraries.
+            </p>
+        </section>
+
+        <section id="quick-start">
+            <h2>Quick Start</h2>
+            <h3>Installation</h3>
+            <pre><code>&lt;library name="simple_console" location="$SIMPLE_CONSOLE\simple_console.ecf"/&gt;</code></pre>
+
+            <h3>Basic Usage</h3>
+            <pre><code>class
+    MY_APPLICATION
+
+inherit
+    SIMPLE_CONSOLE
+
+feature
+
+    console_example
+        do
+            -- Set window title
+            set_title ("My Application")
+
+            -- Clear screen
+            clear
+
+            -- Print colored text
+            print_colored ("Error: ", Red)
+            print ("Something went wrong%N")
+            reset_color
+
+            -- Print at specific position
+            print_at ("Status: OK", 10, 5)
+
+            -- Set colors manually
+            set_foreground (Green)
+            set_background (Black)
+            print ("Green on black%N")
+            reset_color
+
+            -- Get console dimensions
+            print ("Size: " + width.out + "x" + height.out + "%N")
+
+            -- Cursor control
+            hide_cursor
+            set_cursor (0, 0)
+            show_cursor
+        end
+
+end</code></pre>
+        </section>
+
+        <section id="features">
+            <h2>Features</h2>
+            <div class="feature-grid">
+                <div class="feature-card">
+                    <h4>Colors</h4>
+                    <p>Set foreground/background colors (16 colors)</p>
+                </div>
+                <div class="feature-card">
+                    <h4>Cursor Control</h4>
+                    <p>Position, show/hide cursor</p>
+                </div>
+                <div class="feature-card">
+                    <h4>Screen Ops</h4>
+                    <p>Clear screen, clear line, get dimensions</p>
+                </div>
+                <div class="feature-card">
+                    <h4>Convenience</h4>
+                    <p>Print colored text, print at position</p>
+                </div>
+            </div>
+
+            <h3>Color Constants</h3>
+            <table>
+                <tr><th>Color</th><th>Value</th><th>Color</th><th>Value</th></tr>
+                <tr><td>Black</td><td>0</td><td>Dark_gray</td><td>8</td></tr>
+                <tr><td>Dark_blue</td><td>1</td><td>Blue</td><td>9</td></tr>
+                <tr><td>Dark_green</td><td>2</td><td>Green</td><td>10</td></tr>
+                <tr><td>Dark_cyan</td><td>3</td><td>Cyan</td><td>11</td></tr>
+                <tr><td>Dark_red</td><td>4</td><td>Red</td><td>12</td></tr>
+                <tr><td>Dark_magenta</td><td>5</td><td>Magenta</td><td>13</td></tr>
+                <tr><td>Dark_yellow</td><td>6</td><td>Yellow</td><td>14</td></tr>
+                <tr><td>Gray</td><td>7</td><td>White</td><td>15</td></tr>
+            </table>
+        </section>
+
+        <section id="api">
+            <h2>API Reference</h2>
+
+            <h3>Colors</h3>
+            <table>
+                <tr><th>Feature</th><th>Description</th></tr>
+                <tr><td><code>set_color (fg, bg)</code></td><td>Set foreground and background colors</td></tr>
+                <tr><td><code>set_foreground (color)</code></td><td>Set foreground color only</td></tr>
+                <tr><td><code>set_background (color)</code></td><td>Set background color only</td></tr>
+                <tr><td><code>reset_color</code></td><td>Reset to default console colors</td></tr>
+            </table>
+
+            <h3>Cursor Control</h3>
+            <table>
+                <tr><th>Feature</th><th>Description</th></tr>
+                <tr><td><code>set_cursor (x, y)</code></td><td>Move cursor to position (0-based)</td></tr>
+                <tr><td><code>cursor_x</code></td><td>Current cursor X position</td></tr>
+                <tr><td><code>cursor_y</code></td><td>Current cursor Y position</td></tr>
+                <tr><td><code>show_cursor</code></td><td>Make cursor visible</td></tr>
+                <tr><td><code>hide_cursor</code></td><td>Make cursor invisible</td></tr>
+                <tr><td><code>is_cursor_visible</code></td><td>Is the cursor visible?</td></tr>
+            </table>
+
+            <h3>Screen Operations</h3>
+            <table>
+                <tr><th>Feature</th><th>Description</th></tr>
+                <tr><td><code>clear</code></td><td>Clear the entire screen</td></tr>
+                <tr><td><code>clear_line</code></td><td>Clear from cursor to end of line</td></tr>
+                <tr><td><code>set_title (title)</code></td><td>Set console window title</td></tr>
+                <tr><td><code>width</code></td><td>Console window width in characters</td></tr>
+                <tr><td><code>height</code></td><td>Console window height in characters</td></tr>
+            </table>
+
+            <h3>Convenience Methods</h3>
+            <table>
+                <tr><th>Feature</th><th>Description</th></tr>
+                <tr><td><code>print_colored (text, color)</code></td><td>Print text in color, then reset</td></tr>
+                <tr><td><code>print_at (text, x, y)</code></td><td>Print text at position</td></tr>
+            </table>
+
+            <h3>Status</h3>
+            <table>
+                <tr><th>Feature</th><th>Description</th></tr>
+                <tr><td><code>last_operation_succeeded</code></td><td>Did the last operation succeed?</td></tr>
+                <tr><td><code>has_real_console</code></td><td>Do we have a real Windows console?</td></tr>
+            </table>
+        </section>
+    </main>
+
+    <footer>
+        <p>Part of the <a href="https://github.com/ljr1981">simple_*</a> library collection</p>
+        <p>Dependencies: base, encoding</p>
+        <p class="copyright">MIT License - Copyright (c) 2024-2025, Larry Rix</p>
+    </footer>
+</body>
+</html>
