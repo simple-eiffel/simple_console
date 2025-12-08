@@ -4,7 +4,7 @@
 
 # SIMPLE_CONSOLE
 
-**[Documentation](https://ljr1981.github.io/simple_console/)**
+**[Documentation](https://simple-eiffel.github.io/simple_console/)**
 
 ### Console Manipulation Library for Eiffel
 
@@ -55,7 +55,7 @@ SIMPLE_CONSOLE provides SCOOP-compatible console manipulation for Eiffel applica
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/ljr1981/simple_console.git
+git clone https://github.com/simple-eiffel/simple_console.git
 ```
 
 2. Compile the C library:
@@ -271,8 +271,8 @@ MIT License - see [LICENSE](LICENSE) file for details.
 ## Contact
 
 - **Author:** Larry Rix
-- **Repository:** https://github.com/ljr1981/simple_console
-- **Issues:** https://github.com/ljr1981/simple_console/issues
+- **Repository:** https://github.com/simple-eiffel/simple_console
+- **Issues:** https://github.com/simple-eiffel/simple_console/issues
 
 ---
 
