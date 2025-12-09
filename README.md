@@ -1,283 +1,93 @@
-<p align="center">
-  <img src="https://raw.githubusercontent.com/simple-eiffel/claude_eiffel_op_docs/main/artwork/LOGO.png" alt="simple_ library logo" width="400">
-</p>
-
 # SIMPLE_CONSOLE
 
-**[Documentation](https://simple-eiffel.github.io/simple_console/)**
-
-### Console Manipulation Library for Eiffel
-
-[![Language](https://img.shields.io/badge/language-Eiffel-blue.svg)](https://www.eiffel.org/)
-[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
-[![Platform](https://img.shields.io/badge/platform-Windows-blue.svg)]()
-[![SCOOP](https://img.shields.io/badge/SCOOP-compatible-orange.svg)]()
-[![Design by Contract](https://img.shields.io/badge/DbC-enforced-orange.svg)]()
-
----
-
-## Overview
-
-SIMPLE_CONSOLE provides SCOOP-compatible console manipulation for Eiffel applications. It wraps Win32 Console APIs through a clean C interface, enabling colored text output, cursor control, and screen operations without threading complications.
-
-**Developed using AI-assisted methodology:** Built interactively with Claude Opus 4.5 following rigorous Design by Contract principles.
-
----
+SCOOP-compatible console manipulation with colored text, cursor control, and screen operations.
 
 ## Features
 
-### Console Operations
+- 16 foreground and background colors
+- Cursor positioning and visibility control
+- Screen and line clearing
+- Console title setting
+- Screen size detection
+- Thread-safe (SCOOP-compatible)
 
-- **Colors** - Set foreground/background colors (16 colors)
-- **Cursor Control** - Position, show/hide cursor
-- **Screen Operations** - Clear screen, clear line, get dimensions
-- **Window Control** - Set console title
-- **Convenience** - Print colored text, print at position
+## Installation
 
-### Color Constants
+Add to your ECF file:
 
-| Color | Value | Color | Value |
-|-------|-------|-------|-------|
-| Black | 0 | Dark_gray | 8 |
-| Dark_blue | 1 | Blue | 9 |
-| Dark_green | 2 | Green | 10 |
-| Dark_cyan | 3 | Cyan | 11 |
-| Dark_red | 4 | Red | 12 |
-| Dark_magenta | 5 | Magenta | 13 |
-| Dark_yellow | 6 | Yellow | 14 |
-| Gray | 7 | White | 15 |
+```xml
+<library name="simple_console" location="$SIMPLE_CONSOLE/simple_console.ecf"/>
+```
 
----
+Set the environment variable:
+```
+SIMPLE_CONSOLE=/path/to/simple_console
+```
 
 ## Quick Start
 
-### Installation
-
-1. Clone the repository:
-```bash
-git clone https://github.com/simple-eiffel/simple_console.git
-```
-
-2. Compile the C library:
-```bash
-cd simple_console/Clib
-compile.bat
-```
-
-3. Set the environment variable:
-```bash
-set SIMPLE_CONSOLE=D:\path\to\simple_console
-```
-
-4. Add to your ECF file:
-```xml
-<library name="simple_console" location="$SIMPLE_CONSOLE\simple_console.ecf"/>
-```
-
-### Basic Usage
-
 ```eiffel
-class
-    MY_APPLICATION
+local
+    con: SIMPLE_CONSOLE
+do
+    create con
 
-inherit
-    SIMPLE_CONSOLE
+    -- Set colors
+    con.set_foreground (con.Green)
+    print ("Success!%N")
+    con.reset_color
 
-feature
+    -- Print colored text
+    con.print_colored ("Error!", con.Red)
 
-    console_example
-        do
-            -- Set window title
-            set_title ("My Application")
+    -- Position cursor
+    con.set_cursor (10, 5)
+    print ("At position (10, 5)")
 
-            -- Clear screen
-            clear
+    -- Clear screen
+    con.clear
 
-            -- Print colored text
-            print_colored ("Error: ", Red)
-            print ("Something went wrong%N")
-            reset_color
-
-            -- Print at specific position
-            print_at ("Status: OK", 10, 5)
-
-            -- Set colors manually
-            set_foreground (Green)
-            set_background (Black)
-            print ("Green on black%N")
-            reset_color
-
-            -- Get console dimensions
-            print ("Size: " + width.out + "x" + height.out + "%N")
-
-            -- Cursor control
-            hide_cursor
-            set_cursor (0, 0)
-            show_cursor
-        end
-
+    -- Set window title
+    con.set_title ("My Application")
 end
 ```
 
----
+## API Overview
 
-## API Reference
+### SIMPLE_CONSOLE
 
-### SIMPLE_CONSOLE Class
+| Feature | Description |
+|---------|-------------|
+| `set_foreground (color)` | Set text color |
+| `set_background (color)` | Set background color |
+| `set_color (fg, bg)` | Set both colors |
+| `reset_color` | Reset to default colors |
+| `set_cursor (x, y)` | Move cursor to position |
+| `cursor_x, cursor_y` | Get cursor position |
+| `show_cursor, hide_cursor` | Toggle cursor visibility |
+| `clear` | Clear entire screen |
+| `clear_line` | Clear to end of line |
+| `set_title (text)` | Set console window title |
+| `width, height` | Get console dimensions |
+| `print_colored (text, color)` | Print text in color |
+| `print_at (text, x, y)` | Print at position |
 
-#### Colors
+### Color Constants
 
-```eiffel
-set_color (a_foreground, a_background: INTEGER)
-    -- Set foreground and background colors.
+Black, Dark_blue, Dark_green, Dark_cyan, Dark_red, Dark_magenta, Dark_yellow, Gray, Dark_gray, Blue, Green, Cyan, Red, Magenta, Yellow, White (0-15)
 
-set_foreground (a_color: INTEGER)
-    -- Set foreground color only.
+## Documentation
 
-set_background (a_color: INTEGER)
-    -- Set background color only.
+- [API Documentation](https://simple-eiffel.github.io/simple_console/)
 
-reset_color
-    -- Reset to default console colors.
-```
+## Platform Support
 
-#### Cursor Control
-
-```eiffel
-set_cursor (a_x, a_y: INTEGER)
-    -- Move cursor to position (a_x, a_y). 0-based.
-
-cursor_x: INTEGER
-    -- Current cursor X position.
-
-cursor_y: INTEGER
-    -- Current cursor Y position.
-
-show_cursor
-    -- Make cursor visible.
-
-hide_cursor
-    -- Make cursor invisible.
-
-is_cursor_visible: BOOLEAN
-    -- Is the cursor currently visible?
-```
-
-#### Screen Information
-
-```eiffel
-width: INTEGER
-    -- Console window width in characters.
-
-height: INTEGER
-    -- Console window height in characters.
-```
-
-#### Screen Operations
-
-```eiffel
-clear
-    -- Clear the entire screen.
-
-clear_line
-    -- Clear from cursor to end of current line.
-
-set_title (a_title: READABLE_STRING_GENERAL)
-    -- Set console window title.
-```
-
-#### Convenience Methods
-
-```eiffel
-print_colored (a_text: READABLE_STRING_GENERAL; a_color: INTEGER)
-    -- Print `a_text' in `a_color', then reset.
-
-print_at (a_text: READABLE_STRING_GENERAL; a_x, a_y: INTEGER)
-    -- Print `a_text' at position (a_x, a_y).
-```
-
-#### Status
-
-```eiffel
-last_operation_succeeded: BOOLEAN
-    -- Did the last operation succeed?
-
-has_real_console: BOOLEAN
-    -- Do we have a real Windows console (not mintty/pipe)?
-```
-
----
-
-## Building & Testing
-
-### Build Library
-
-```bash
-cd simple_console
-ec -config simple_console.ecf -target simple_console -c_compile
-```
-
-### Run Tests
-
-```bash
-ec -config simple_console.ecf -target simple_console_tests -c_compile
-./EIFGENs/simple_console_tests/W_code/simple_console.exe
-```
-
----
-
-## Project Structure
-
-```
-simple_console/
-├── Clib/                       # C wrapper library
-│   ├── simple_console.h        # C header file
-│   ├── simple_console.c        # C implementation
-│   └── compile.bat             # Build script
-├── src/                        # Eiffel source
-│   └── simple_console.e        # Main wrapper class
-├── testing/                    # Test suite
-│   ├── application.e           # Test runner
-│   └── test_simple_console.e   # Test cases
-├── simple_console.ecf          # Library configuration
-├── README.md                   # This file
-└── LICENSE                     # MIT License
-```
-
----
-
-## Dependencies
-
-- **Windows OS** - Console API is Windows-specific
-- **EiffelStudio 23.09+** - Development environment
-- **Visual Studio C++ Build Tools** - For compiling C wrapper
-
----
-
-## SCOOP Compatibility
-
-SIMPLE_CONSOLE is fully SCOOP-compatible. The C wrapper handles all Win32 API calls synchronously without threading dependencies, making it safe for use in concurrent Eiffel applications.
-
-**Note:** Console operations only work properly when `has_real_console` returns True. In mintty or piped output scenarios, some operations may not have visible effects.
-
----
+- Windows only (uses Win32 API)
 
 ## License
 
-MIT License - see [LICENSE](LICENSE) file for details.
+MIT License - see LICENSE file for details.
 
----
+## Author
 
-## Contact
-
-- **Author:** Larry Rix
-- **Repository:** https://github.com/simple-eiffel/simple_console
-- **Issues:** https://github.com/simple-eiffel/simple_console/issues
-
----
-
-## Acknowledgments
-
-- Built with Claude Opus 4.5 (Anthropic)
-- Uses Win32 Console API (Microsoft)
-- Part of the simple_ library collection for Eiffel
+Larry Rix
