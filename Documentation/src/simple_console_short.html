@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta name="generator" content="ISE EiffelStudio version 25.02.9.8732 - win64">
-<meta name="description" content="SCOOP-compatible console manipulation. Provides colored text, cursor control, and screen clearing."/>
+<meta name="description" content="SCOOP-compatible console manipulation with inline C. Provides colored text, cursor control, and screen clearing."/>
 <meta name="author" content="Larry Rix"/>
 <meta name="keywords" content="Eiffel class"/>
 <meta name="keywords" content="Eiffel class"/>
@@ -24,7 +24,7 @@
 <span class="nav class goto">Go to: <input name="c" value="simple_console"></span>
 </div></form><pre><span class="ekeyword">note</span>
 	<span class="eitag">description</span><span class="esymbol">:</span> <span class="estring">&quot;</span><span class="estring">[</span>
-		<span class="estring">SCOOP-compatible console manipulation.</span>
+		<span class="estring">SCOOP-compatible console manipulation with inline C.</span>
 		<span class="estring">Provides colored text, cursor control, and screen clearing.</span>
 	<span class="estring">]</span><span class="estring">&quot;</span>
 	<span class="eitag">author</span><span class="esymbol">:</span> <span class="estring">&quot;Larry Rix&quot;</span>
@@ -105,13 +105,13 @@
 <span class="ekeyword">feature</span> <span class="ecomment">--</span><span class="ecomment"> Convenience: Print with Color</span>
 
 	<a name="f_print_colored"></a><a class="efeature" href="../src/simple_console_short.html#f_print_colored">print_colored</a> <span class="esymbol">(</span><span class="elocal">a_text</span><span class="esymbol">:</span> <a class="eclass" href="../base/readable_string_general_short.html">READABLE_STRING_GENERAL</a><span class="esymbol">;</span> <span class="elocal">a_color</span><span class="esymbol">:</span> <a class="eclass" href="../base/integer_32_short.html">INTEGER_32</a><span class="esymbol">)</span>
-			<span class="ecomment">--</span><span class="ecomment"> Print </span><span class="equoted">a_text</span><span class="ecomment"> in </span><span class="equoted">a_color</span><span class="ecomment">, then reset.</span>
+			<span class="ecomment">--</span><span class="ecomment"> Print a_text in a_color, then reset.</span>
 		<span class="ekeyword">require</span>
 			<span class="etag">text_not_void</span><span class="esymbol">:</span> <span class="elocal">a_text</span> <span class="esymbol">/=</span> <span class="ekeyword">Void</span>
 			<span class="etag">valid_color</span><span class="esymbol">:</span> <span class="elocal">a_color</span> <a class="esymbol" href="../base/comparable_short.html#f_is_greater_equal">&gt;=</a> <span class="enumber">0</span> <a class="ekeyword" href="../base/boolean_short.html#f_conjuncted">and</a> <span class="elocal">a_color</span> <a class="esymbol" href="../base/comparable_short.html#f_is_less_equal">&lt;=</a> <span class="enumber">15</span>
 
 	<a name="f_print_at"></a><a class="efeature" href="../src/simple_console_short.html#f_print_at">print_at</a> <span class="esymbol">(</span><span class="elocal">a_text</span><span class="esymbol">:</span> <a class="eclass" href="../base/readable_string_general_short.html">READABLE_STRING_GENERAL</a><span class="esymbol">;</span> <span class="elocal">a_x</span><span class="esymbol">,</span> <span class="elocal">a_y</span><span class="esymbol">:</span> <a class="eclass" href="../base/integer_32_short.html">INTEGER_32</a><span class="esymbol">)</span>
-			<span class="ecomment">--</span><span class="ecomment"> Print </span><span class="equoted">a_text</span><span class="ecomment"> at position (a_x, a_y).</span>
+			<span class="ecomment">--</span><span class="ecomment"> Print a_text at position (a_x, a_y).</span>
 		<span class="ekeyword">require</span>
 			<span class="etag">text_not_void</span><span class="esymbol">:</span> <span class="elocal">a_text</span> <span class="esymbol">/=</span> <span class="ekeyword">Void</span>
 			<span class="etag">valid_x</span><span class="esymbol">:</span> <span class="elocal">a_x</span> <a class="esymbol" href="../base/comparable_short.html#f_is_greater_equal">&gt;=</a> <span class="enumber">0</span>
