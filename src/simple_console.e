@@ -181,177 +181,81 @@ feature -- Color Constants
 	Yellow: INTEGER = 14
 	White: INTEGER = 15
 
-feature {NONE} -- C externals (inline)
+feature {NONE} -- C externals (using simple_console.h)
 
 	c_sc_set_color (a_color: INTEGER): INTEGER
-		external
-			"C inline use <windows.h>"
-		alias
-			"return SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), (WORD)$a_color) ? 1 : 0;"
+		external "C inline use %"simple_console.h%""
+		alias "return sc_set_color($a_color);"
 		end
 
 	c_sc_set_foreground (a_color: INTEGER): INTEGER
-		external
-			"C inline use <windows.h>"
-		alias
-			"[
-				CONSOLE_SCREEN_BUFFER_INFO csbi;
-				HANDLE h = GetStdHandle(STD_OUTPUT_HANDLE);
-				if (!GetConsoleScreenBufferInfo(h, &csbi)) return 0;
-				return SetConsoleTextAttribute(h, (csbi.wAttributes & 0xF0) | ($a_color & 0x0F)) ? 1 : 0;
-			]"
+		external "C inline use %"simple_console.h%""
+		alias "return sc_set_foreground($a_color);"
 		end
 
 	c_sc_set_background (a_color: INTEGER): INTEGER
-		external
-			"C inline use <windows.h>"
-		alias
-			"[
-				CONSOLE_SCREEN_BUFFER_INFO csbi;
-				HANDLE h = GetStdHandle(STD_OUTPUT_HANDLE);
-				if (!GetConsoleScreenBufferInfo(h, &csbi)) return 0;
-				return SetConsoleTextAttribute(h, (csbi.wAttributes & 0x0F) | (($a_color & 0x0F) << 4)) ? 1 : 0;
-			]"
+		external "C inline use %"simple_console.h%""
+		alias "return sc_set_background($a_color);"
 		end
 
 	c_sc_reset_color: INTEGER
-		external
-			"C inline use <windows.h>"
-		alias
-			"return SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), 7) ? 1 : 0;"
+		external "C inline use %"simple_console.h%""
+		alias "return sc_reset_color();"
 		end
 
 	c_sc_set_cursor (a_x, a_y: INTEGER): INTEGER
-		external
-			"C inline use <windows.h>"
-		alias
-			"[
-				COORD pos; pos.X = (SHORT)$a_x; pos.Y = (SHORT)$a_y;
-				return SetConsoleCursorPosition(GetStdHandle(STD_OUTPUT_HANDLE), pos) ? 1 : 0;
-			]"
+		external "C inline use %"simple_console.h%""
+		alias "return sc_set_cursor($a_x, $a_y);"
 		end
 
 	c_sc_get_cursor_x: INTEGER
-		external
-			"C inline use <windows.h>"
-		alias
-			"[
-				CONSOLE_SCREEN_BUFFER_INFO csbi;
-				if (!GetConsoleScreenBufferInfo(GetStdHandle(STD_OUTPUT_HANDLE), &csbi)) return -1;
-				return (int)csbi.dwCursorPosition.X;
-			]"
+		external "C inline use %"simple_console.h%""
+		alias "return sc_get_cursor_x();"
 		end
 
 	c_sc_get_cursor_y: INTEGER
-		external
-			"C inline use <windows.h>"
-		alias
-			"[
-				CONSOLE_SCREEN_BUFFER_INFO csbi;
-				if (!GetConsoleScreenBufferInfo(GetStdHandle(STD_OUTPUT_HANDLE), &csbi)) return -1;
-				return (int)csbi.dwCursorPosition.Y;
-			]"
+		external "C inline use %"simple_console.h%""
+		alias "return sc_get_cursor_y();"
 		end
 
 	c_sc_get_width: INTEGER
-		external
-			"C inline use <windows.h>"
-		alias
-			"[
-				CONSOLE_SCREEN_BUFFER_INFO csbi;
-				if (!GetConsoleScreenBufferInfo(GetStdHandle(STD_OUTPUT_HANDLE), &csbi)) return 80;
-				return (int)(csbi.srWindow.Right - csbi.srWindow.Left + 1);
-			]"
+		external "C inline use %"simple_console.h%""
+		alias "return sc_get_width();"
 		end
 
 	c_sc_get_height: INTEGER
-		external
-			"C inline use <windows.h>"
-		alias
-			"[
-				CONSOLE_SCREEN_BUFFER_INFO csbi;
-				if (!GetConsoleScreenBufferInfo(GetStdHandle(STD_OUTPUT_HANDLE), &csbi)) return 25;
-				return (int)(csbi.srWindow.Bottom - csbi.srWindow.Top + 1);
-			]"
+		external "C inline use %"simple_console.h%""
+		alias "return sc_get_height();"
 		end
 
 	c_sc_clear: INTEGER
-		external
-			"C inline use <windows.h>"
-		alias
-			"[
-				CONSOLE_SCREEN_BUFFER_INFO csbi;
-				HANDLE h = GetStdHandle(STD_OUTPUT_HANDLE);
-				DWORD written;
-				COORD home = {0, 0};
-				DWORD size;
-				if (!GetConsoleScreenBufferInfo(h, &csbi)) return 0;
-				size = csbi.dwSize.X * csbi.dwSize.Y;
-				FillConsoleOutputCharacterA(h, 32, size, home, &written);
-				FillConsoleOutputAttribute(h, csbi.wAttributes, size, home, &written);
-				SetConsoleCursorPosition(h, home);
-				return 1;
-			]"
+		external "C inline use %"simple_console.h%""
+		alias "return sc_clear();"
 		end
 
 	c_sc_clear_line: INTEGER
-		external
-			"C inline use <windows.h>"
-		alias
-			"[
-				CONSOLE_SCREEN_BUFFER_INFO csbi;
-				HANDLE h = GetStdHandle(STD_OUTPUT_HANDLE);
-				DWORD written;
-				DWORD len;
-				if (!GetConsoleScreenBufferInfo(h, &csbi)) return 0;
-				len = csbi.dwSize.X - csbi.dwCursorPosition.X;
-				FillConsoleOutputCharacterA(h, 32, len, csbi.dwCursorPosition, &written);
-				FillConsoleOutputAttribute(h, csbi.wAttributes, len, csbi.dwCursorPosition, &written);
-				return 1;
-			]"
+		external "C inline use %"simple_console.h%""
+		alias "return sc_clear_line();"
 		end
 
 	c_sc_set_title (a_title: POINTER): INTEGER
-		external
-			"C inline use <windows.h>"
-		alias
-			"return SetConsoleTitleA((const char*)$a_title) ? 1 : 0;"
+		external "C inline use %"simple_console.h%""
+		alias "return sc_set_title((const char*)$a_title);"
 		end
 
 	c_sc_show_cursor (a_visible: INTEGER): INTEGER
-		external
-			"C inline use <windows.h>"
-		alias
-			"[
-				CONSOLE_CURSOR_INFO cci;
-				HANDLE h = GetStdHandle(STD_OUTPUT_HANDLE);
-				if (!GetConsoleCursorInfo(h, &cci)) return 0;
-				cci.bVisible = $a_visible ? TRUE : FALSE;
-				return SetConsoleCursorInfo(h, &cci) ? 1 : 0;
-			]"
+		external "C inline use %"simple_console.h%""
+		alias "return sc_show_cursor($a_visible);"
 		end
 
 	c_sc_is_cursor_visible: INTEGER
-		external
-			"C inline use <windows.h>"
-		alias
-			"[
-				CONSOLE_CURSOR_INFO cci;
-				if (!GetConsoleCursorInfo(GetStdHandle(STD_OUTPUT_HANDLE), &cci)) return 1;
-				return cci.bVisible ? 1 : 0;
-			]"
+		external "C inline use %"simple_console.h%""
+		alias "return sc_is_cursor_visible();"
 		end
 
 	c_sc_has_real_console: INTEGER
-		external
-			"C inline use <windows.h>"
-		alias
-			"[
-				DWORD mode;
-				HANDLE h = GetStdHandle(STD_OUTPUT_HANDLE);
-				if (h == INVALID_HANDLE_VALUE || h == NULL) return 0;
-				return GetConsoleMode(h, &mode) ? 1 : 0;
-			]"
+		external "C inline use %"simple_console.h%""
+		alias "return sc_has_real_console();"
 		end
 
 end
