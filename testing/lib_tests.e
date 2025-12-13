@@ -3,7 +3,7 @@ note
 	testing: "covers"
 
 class
-	TEST_SIMPLE_CONSOLE
+	LIB_TESTS
 
 inherit
 	TEST_SET_BASE
