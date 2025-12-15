@@ -10,6 +10,17 @@ note
 class
 	SIMPLE_CONSOLE
 
+create
+	make, default_create
+
+feature {NONE} -- Initialization
+
+	make
+			-- Initialize console.
+		do
+			-- Default initialization (nothing special needed)
+		end
+
 feature -- Colors
 
 	set_color (a_foreground, a_background: INTEGER)
@@ -148,6 +159,61 @@ feature -- Convenience: Print with Color
 		do
 			set_cursor (a_x, a_y)
 			print (a_text)
+		end
+
+feature -- CLI Output Helpers
+
+	print_line (a_text: READABLE_STRING_GENERAL)
+			-- Print a_text followed by newline.
+		require
+			text_not_void: a_text /= Void
+		do
+			print (a_text)
+			print ("%N")
+		end
+
+	print_success (a_text: READABLE_STRING_GENERAL)
+			-- Print success message in green.
+		require
+			text_not_void: a_text /= Void
+		do
+			set_foreground (Green)
+			print (a_text)
+			reset_color
+			print ("%N")
+		end
+
+	print_error (a_text: READABLE_STRING_GENERAL)
+			-- Print error message in red.
+		require
+			text_not_void: a_text /= Void
+		do
+			set_foreground (Red)
+			print (a_text)
+			reset_color
+			print ("%N")
+		end
+
+	print_warning (a_text: READABLE_STRING_GENERAL)
+			-- Print warning message in yellow.
+		require
+			text_not_void: a_text /= Void
+		do
+			set_foreground (Yellow)
+			print (a_text)
+			reset_color
+			print ("%N")
+		end
+
+	print_info (a_text: READABLE_STRING_GENERAL)
+			-- Print info message in cyan.
+		require
+			text_not_void: a_text /= Void
+		do
+			set_foreground (Cyan)
+			print (a_text)
+			reset_color
+			print ("%N")
 		end
 
 feature -- Status
