@@ -16,12 +16,12 @@ SCOOP-compatible console manipulation with colored text, cursor control, and scr
 Add to your ECF file:
 
 ```xml
-<library name="simple_console" location="$SIMPLE_CONSOLE/simple_console.ecf"/>
+<library name="simple_console" location="$SIMPLE_EIFFEL/simple_console/simple_console.ecf"/>
 ```
 
-Set the environment variable:
+Set the environment variable (one-time setup for all simple_* libraries):
 ```
-SIMPLE_CONSOLE=/path/to/simple_console
+SIMPLE_EIFFEL=D:\prod
 ```
 
 ## Quick Start
