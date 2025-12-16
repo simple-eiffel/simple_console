@@ -16,8 +16,9 @@
 			<concurrency support="scoop" use="thread"/>
 			<void_safety support="all"/>
 		</capability>
-		<external_include location="$(SIMPLE_CONSOLE)\Clib"/>
+		<external_include location="$(SIMPLE_EIFFEL)/simple_console/Clib"/>
 		<library name="base" location="$ISE_LIBRARY\library\base\base.ecf"/>
+		<library name="simple_logger" location="$SIMPLE_EIFFEL/simple_logger/simple_logger.ecf"/>
 		<cluster name="src" location=".\src\" recursive="true"/>
 	</target>
 	<target name="simple_console_tests" extends="simple_console">
