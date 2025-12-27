@@ -11,7 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Post-session update 2025-12-08 20:52
 - Post-session update 2025-12-08 20:45
 - Post-session update 2025-12-08 20:16
-- Inline C code into Eiffel class per Eric Bezault recommendation
+- Inline C code into Eiffel class 
 - Testing config updates, AutoTest fixes, .gitignore cleanup
 - Migrate to simple_testing library
 - Add GitHub Pages documentation
