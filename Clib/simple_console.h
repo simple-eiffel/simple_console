@@ -117,6 +117,69 @@ static int sc_has_real_console(void) {
     return GetConsoleMode(h, &mode) ? 1 : 0;
 }
 
+/* Key reading with modifier detection */
+static int sc_last_char = 0;
+static int sc_last_shift = 0;
+static int sc_last_ctrl = 0;
+static int sc_last_is_enter = 0;
+static int sc_last_is_backspace = 0;
+
+static int sc_read_key(void) {
+    HANDLE hStdin = GetStdHandle(STD_INPUT_HANDLE);
+    INPUT_RECORD ir;
+    DWORD numRead;
+    DWORD oldMode;
+
+    if (hStdin == INVALID_HANDLE_VALUE) return 0;
+
+    /* Save and modify console mode for raw input */
+    GetConsoleMode(hStdin, &oldMode);
+    SetConsoleMode(hStdin, oldMode & ~(ENABLE_LINE_INPUT | ENABLE_ECHO_INPUT));
+
+    /* Read until we get a key down event */
+    while (1) {
+        if (!ReadConsoleInputW(hStdin, &ir, 1, &numRead) || numRead == 0) {
+            SetConsoleMode(hStdin, oldMode);
+            return 0;
+        }
+
+        if (ir.EventType == KEY_EVENT && ir.Event.KeyEvent.bKeyDown) {
+            WORD vk = ir.Event.KeyEvent.wVirtualKeyCode;
+            DWORD ctrl = ir.Event.KeyEvent.dwControlKeyState;
+            WCHAR ch = ir.Event.KeyEvent.uChar.UnicodeChar;
+
+            sc_last_shift = (ctrl & SHIFT_PRESSED) ? 1 : 0;
+            sc_last_ctrl = (ctrl & (LEFT_CTRL_PRESSED | RIGHT_CTRL_PRESSED)) ? 1 : 0;
+            sc_last_is_enter = (vk == VK_RETURN) ? 1 : 0;
+            sc_last_is_backspace = (vk == VK_BACK) ? 1 : 0;
+
+            if (ch != 0 && ch < 256) {
+                sc_last_char = (int)ch;
+            } else {
+                sc_last_char = 0;
+            }
+
+            SetConsoleMode(hStdin, oldMode);
+            return 1;
+        }
+    }
+}
+
+static int sc_get_last_char(void) { return sc_last_char; }
+static int sc_get_last_shift(void) { return sc_last_shift; }
+static int sc_get_last_ctrl(void) { return sc_last_ctrl; }
+static int sc_get_last_is_enter(void) { return sc_last_is_enter; }
+static int sc_get_last_is_backspace(void) { return sc_last_is_backspace; }
+
+static int sc_has_pending_input(void) {
+    /* Check if more input is waiting (for paste detection) */
+    HANDLE hStdin = GetStdHandle(STD_INPUT_HANDLE);
+    DWORD numEvents = 0;
+    if (!GetNumberOfConsoleInputEvents(hStdin, &numEvents)) return 0;
+    /* More than 0 events means input is pending */
+    return (numEvents > 0) ? 1 : 0;
+}
+
 #else
 /* ============ UNIX/LINUX IMPLEMENTATION ============ */
 /* Uses ANSI escape sequences for terminal control */
