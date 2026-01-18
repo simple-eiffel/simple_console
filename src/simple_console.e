@@ -68,7 +68,7 @@ feature -- Colors
 		local
 			l_color: INTEGER
 		do
-			l_color := a_foreground + (a_background |<< 4)
+			l_color := a_foreground + (a_background |<< Color_nibble_shift)
 			last_operation_succeeded := c_sc_set_color (l_color) /= 0
 			if last_operation_succeeded then
 				last_error_message := ""
@@ -442,9 +442,9 @@ feature -- Color Validation
 	is_valid_color (a_color: INTEGER): BOOLEAN
 			-- Is a_color a valid console color (0-15)?
 		do
-			Result := a_color >= 0 and a_color <= 15
+			Result := a_color >= Black and a_color <= White
 		ensure
-			definition: Result = (a_color >= 0 and a_color <= 15)
+			definition: Result = (a_color >= Black and a_color <= White)
 		end
 
 	color_name (a_color: INTEGER): STRING
@@ -604,9 +604,17 @@ feature {NONE} -- C externals (using simple_console.h)
 		alias "return sc_has_real_console();"
 		end
 
+feature {NONE} -- Constants
+
+	Color_nibble_shift: INTEGER = 4
+			-- Bit shift to place background color in high nibble
+
+	Max_color_value: INTEGER = 15
+			-- Maximum valid color value (equals White)
+
 invariant
 	error_message_not_void: last_error_message /= Void
-	color_constants_valid: Black = 0 and White = 15
+	color_constants_valid: Black = 0 and White = Max_color_value
 	log_level_valid: log_level >= 0 and log_level <= Log_level_fatal
 
 end

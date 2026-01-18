@@ -89,7 +89,7 @@ feature -- Test routines: Color Constants
 			-- Test is_valid_color for all boundary cases.
 		local
 			l_con: SIMPLE_CONSOLE
-			i: INTEGER
+			l_i: INTEGER
 		do
 			create l_con
 			-- Invalid negative
@@ -97,9 +97,9 @@ feature -- Test routines: Color Constants
 			assert ("very_negative_invalid", not l_con.is_valid_color (-100))
 
 			-- Valid range 0-15
-			from i := 0 until i > 15 loop
-				assert ("color_" + i.out + "_valid", l_con.is_valid_color (i))
-				i := i + 1
+			from l_i := 0 until l_i > l_con.White loop
+				assert ("color_" + l_i.out + "_valid", l_con.is_valid_color (l_i))
+				l_i := l_i + 1
 			end
 
 			-- Invalid above range
@@ -112,15 +112,15 @@ feature -- Test routines: Color Constants
 			-- Test color_name returns valid names for all colors.
 		local
 			l_con: SIMPLE_CONSOLE
-			i: INTEGER
+			l_i: INTEGER
 			l_name: STRING
 		do
 			create l_con
-			from i := 0 until i > 15 loop
-				l_name := l_con.color_name (i)
-				assert ("color_" + i.out + "_has_name", not l_name.is_empty)
-				assert ("color_" + i.out + "_not_unknown", not l_name.same_string ("Unknown"))
-				i := i + 1
+			from l_i := 0 until l_i > l_con.White loop
+				l_name := l_con.color_name (l_i)
+				assert ("color_" + l_i.out + "_has_name", not l_name.is_empty)
+				assert ("color_" + l_i.out + "_not_unknown", not l_name.same_string ("Unknown"))
+				l_i := l_i + 1
 			end
 		end
 
@@ -282,14 +282,14 @@ feature -- Test routines: Color Operations
 			-- Test setting all 16 foreground colors.
 		local
 			l_con: SIMPLE_CONSOLE
-			i: INTEGER
+			l_i: INTEGER
 		do
 			create l_con
 			if l_con.has_real_console then
-				from i := 0 until i > 15 loop
-					l_con.set_foreground (i)
-					assert_true ("fg_color_" + i.out + "_set", l_con.last_operation_succeeded)
-					i := i + 1
+				from l_i := 0 until l_i > l_con.White loop
+					l_con.set_foreground (l_i)
+					assert_true ("fg_color_" + l_i.out + "_set", l_con.last_operation_succeeded)
+					l_i := l_i + 1
 				end
 				l_con.reset_color
 			else
@@ -301,14 +301,14 @@ feature -- Test routines: Color Operations
 			-- Test setting all 16 background colors.
 		local
 			l_con: SIMPLE_CONSOLE
-			i: INTEGER
+			l_i: INTEGER
 		do
 			create l_con
 			if l_con.has_real_console then
-				from i := 0 until i > 15 loop
-					l_con.set_background (i)
-					assert_true ("bg_color_" + i.out + "_set", l_con.last_operation_succeeded)
-					i := i + 1
+				from l_i := 0 until l_i > l_con.White loop
+					l_con.set_background (l_i)
+					assert_true ("bg_color_" + l_i.out + "_set", l_con.last_operation_succeeded)
+					l_i := l_i + 1
 				end
 				l_con.reset_color
 			else
