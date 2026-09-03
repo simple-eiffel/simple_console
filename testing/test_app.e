@@ -11,11 +11,31 @@ create
 feature {NONE} -- Initialization
 
 	make
-			-- Run tests.
+			-- Run the test suite - or, when given `Hidden_probe_option', act as
+			-- the child process LIB_TESTS drives with a redirected standard input
+			-- to exercise `SIMPLE_CONSOLE.read_hidden_line' for real.
 		local
 			tests: LIB_TESTS
+			l_args: ARGUMENTS_32
 		do
 			create tests
+			create l_args
+			if l_args.argument_count >= 1 and then
+				l_args.argument (1).same_string_general (tests.Hidden_probe_option)
+			then
+				run_hidden_line_probe
+			elseif l_args.argument_count >= 1 and then
+				l_args.argument (1).same_string_general (Hidden_demo_option)
+			then
+				run_hidden_line_demo
+			else
+				run_tests (tests)
+			end
+		end
+
+	run_tests (tests: LIB_TESTS)
+			-- Run tests.
+		do
 			io.put_string ("simple_console test runner%N")
 			io.put_string ("==========================%N%N")
 
@@ -79,6 +99,15 @@ feature {NONE} -- Initialization
 			run_test (agent tests.test_error_message_cleared_on_success, "test_error_message_cleared_on_success")
 			run_test (agent tests.test_error_handling_no_console, "test_error_handling_no_console")
 
+			-- Hidden Line Input Tests
+			io.put_string ("%NHidden Line Input Tests:%N")
+			run_test (agent tests.test_is_stdin_console_is_answerable, "test_is_stdin_console_is_answerable")
+			run_test (agent tests.test_hidden_line_redirected_ascii, "test_hidden_line_redirected_ascii")
+			run_test (agent tests.test_hidden_line_redirected_crlf, "test_hidden_line_redirected_crlf")
+			run_test (agent tests.test_hidden_line_redirected_unicode, "test_hidden_line_redirected_unicode")
+			run_test (agent tests.test_hidden_line_redirected_end_of_input, "test_hidden_line_redirected_end_of_input")
+			run_test (agent tests.test_hidden_line_redirected_empty_line, "test_hidden_line_redirected_empty_line")
+
 			-- Invariant Tests
 			io.put_string ("%NInvariant Verification Tests:%N")
 			run_test (agent tests.test_invariant_holds, "test_invariant_holds")
@@ -94,6 +123,85 @@ feature {NONE} -- Initialization
 		end
 
 feature {NONE} -- Implementation
+
+	Hidden_demo_option: STRING = "--hidden-line-demo"
+			-- Command-line option that runs `run_hidden_line_demo'.
+
+	run_hidden_line_demo
+			-- MANUAL check of the console path of `read_hidden_line' - the path no
+			-- automated test in this suite can reach, because a test runner's
+			-- standard input is a file or a pipe and this path needs a real
+			-- console. Run it from cmd.exe or Windows Terminal, NOT through a pipe
+			-- and NOT from a mintty shell such as git-bash:
+			--
+			--   EIFGENs/simple_console_tests/F_code/simple_console.exe --hidden-line-demo
+			--
+			-- What to look for:
+			--   1. `is_stdin_console' reports True.
+			--   2. NOTHING appears on screen while you type the first line.
+			--   3. Backspace still erases, and Enter still ends the line.
+			--   4. The code points reported back are the ones you typed - try a
+			--      non-ASCII character if your keyboard can produce one.
+			--   5. The SECOND line, read the ordinary way, DOES echo. That is the
+			--      proof the console mode was put back.
+		local
+			l_con: SIMPLE_CONSOLE
+			i: INTEGER
+		do
+			create l_con
+			io.put_string ("is_stdin_console: " + l_con.is_stdin_console.out + "%N")
+			io.put_string ("Secret (nothing should appear as you type): ")
+			if attached l_con.read_hidden_line as l_line then
+				io.put_string ("read " + l_line.count.out + " characters, code points:")
+				from
+					i := 1
+				until
+					i > l_line.count
+				loop
+					io.put_string (" " + l_line.code (i).out)
+					i := i + 1
+				end
+				io.put_new_line
+			else
+				io.put_string ("end of input - nothing read%N")
+			end
+			io.put_string ("Echo check (this line SHOULD appear as you type): ")
+			io.read_line
+			io.put_string ("you typed " + io.last_string.count.out + " characters%N")
+		end
+
+	run_hidden_line_probe
+			-- Read ONE line with `SIMPLE_CONSOLE.read_hidden_line' and report it on
+			-- standard output as decimal code points, so the parent test can check
+			-- every character without depending on the encoding this process's own
+			-- output happens to use.
+		local
+			l_con: SIMPLE_CONSOLE
+			l_report: STRING_8
+			i: INTEGER
+		do
+			create l_con
+			create l_report.make (64)
+			l_report.append ("CONSOLE:" + l_con.is_stdin_console.out + "%N")
+			if attached l_con.read_hidden_line as l_line then
+				l_report.append ("LINE:" + l_line.count.out + ":")
+				from
+					i := 1
+				until
+					i > l_line.count
+				loop
+					if i > 1 then
+						l_report.append_character (',')
+					end
+					l_report.append (l_line.code (i).out)
+					i := i + 1
+				end
+				l_report.append_character ('%N')
+			else
+				l_report.append ("VOID%N")
+			end
+			io.put_string (l_report)
+		end
 
 	passed: INTEGER
 	failed: INTEGER

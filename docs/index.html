@@ -31,6 +31,7 @@
                 <li>Cursor positioning</li>
                 <li>Screen/line clearing</li>
                 <li>Console title setting</li>
+                <li>Hidden (no-echo) line input for password prompts</li>
                 <li>Thread-safe (SCOOP-compatible)</li>
             </ul>
         </section>
@@ -89,6 +90,23 @@ end</code></pre>
                 <tr><td><code>width, height</code></td><td>Console dimensions</td></tr>
                 <tr><td><code>set_title (text)</code></td><td>Set window title</td></tr>
             </table>
+
+            <h3>Input</h3>
+            <table>
+                <tr><th>Feature</th><th>Description</th></tr>
+                <tr><td><code>is_stdin_console</code></td><td>Is standard input a console, rather than a file or a pipe?</td></tr>
+                <tr><td><code>read_hidden_line</code></td><td>Read one line of standard input without echoing it; <code>Void</code> on end of input, never a partial line</td></tr>
+            </table>
+            <p>When standard input is a console, <code>read_hidden_line</code> clears
+            <code>ENABLE_ECHO_INPUT</code> for the read (keeping line editing and Ctrl+C),
+            reads through <code>ReadConsoleW</code> in UTF-16 so a Hebrew or Greek password
+            survives, and restores the previous console mode on every exit path. When
+            standard input is redirected from a file or a pipe - as an installer's
+            verification script feeds it - the line is read the ordinary way, decoded as
+            UTF-8, and no console mode is touched. Both paths strip the trailing CR/LF.</p>
+            <pre><code>if attached con.read_hidden_line as l_password then
+    create_admin (l_password)
+end</code></pre>
         </section>
 
         <section id="colors">
