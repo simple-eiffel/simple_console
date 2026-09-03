@@ -528,6 +528,14 @@ feature -- Hidden Line Input: driving constant
 			-- came back, so these tests can drive the real feature in a real
 			-- process whose standard input is really redirected.
 
+	Masked_probe_option: STRING = "--masked-line-probe"
+			-- Command-line option that puts TEST_APP into probe mode: it reads
+			-- ONE line with `SIMPLE_CONSOLE.read_masked_line' and reports what
+			-- came back, so these tests can drive the real feature in a real
+			-- process whose standard input is really redirected - where
+			-- `read_masked_line' is defined to behave IDENTICALLY to
+			-- `read_hidden_line': no mask printed, no console mode touched.
+
 feature -- Test routines: Hidden Line Input
 
 	test_is_stdin_console_is_answerable
@@ -583,7 +591,71 @@ feature -- Test routines: Hidden Line Input
 			end
 		end
 
-feature {NONE} -- Hidden Line Input: implementation
+feature -- Test routines: Masked Line Input
+
+	test_masked_line_redirected_ascii
+			-- A plain ASCII password over a redirected, LF-terminated stdin -
+			-- the same five shapes `read_hidden_line' is proven against,
+			-- because the redirected path is defined to behave identically.
+		do
+			run_masked_probe_case ("masked_ascii_lf", {STRING_32} "hunter2", "%N")
+		end
+
+	test_masked_line_redirected_crlf
+			-- A CRLF file - what a Windows verification script writes - must
+			-- not leave the CR on the end of the password.
+		do
+			run_masked_probe_case ("masked_ascii_crlf", {STRING_32} "P@ssw0rd!", "%R%N")
+		end
+
+	test_masked_line_redirected_unicode
+			-- Hebrew and Greek in a password survive the round trip. Written as
+			-- code points so this source file stays ASCII and holds no
+			-- bidirectional text: shalom, a hyphen, logos, a digit pair.
+		do
+			run_masked_probe_case ("masked_unicode_lf",
+				{STRING_32} "%/1513/%/1500/%/1493/%/1501/-%/955/%/972/%/947/%/959/%/962/-42", "%N")
+		end
+
+	test_masked_line_redirected_end_of_input
+			-- Nothing at all on standard input is Void, never a partial line.
+		do
+			if attached masked_probe_output ("", "masked_eof") as l_out then
+				assert_string_contains ("masked_reports_void", l_out, "VOID")
+				assert_string_contains ("masked_stdin_not_a_console", l_out, "CONSOLE:False")
+			else
+				print ("  (skipped masked_eof: probe executable not reachable)%N")
+			end
+		end
+
+	test_masked_line_redirected_empty_line
+			-- A line the user ended immediately is the empty string, not Void.
+		do
+			if attached masked_probe_output ("%N", "masked_empty_line") as l_out then
+				assert_string_contains ("masked_reports_an_empty_line", l_out, "LINE:0:")
+			else
+				print ("  (skipped masked_empty_line: probe executable not reachable)%N")
+			end
+		end
+
+	test_masked_line_redirected_prints_no_mask_characters
+			-- The whole point of the redirected path is that it is
+			-- indistinguishable from `read_hidden_line': NOTHING is echoed,
+			-- masks included. The probe's raw standard output is nothing but
+			-- its own "CONSOLE:" / "LINE:" report - no `*' from a mask, and no
+			-- Backspace-erase sequence either, because none of that machinery
+			-- ever runs on this path.
+		do
+			if attached masked_probe_output ("hunter2%N", "masked_no_echo") as l_out then
+				assert_string_contains ("masked_no_echo_stdin_not_a_console", l_out, "CONSOLE:False")
+				assert ("masked_no_echo_no_star_on_stdout", not l_out.has ('*'))
+				assert ("masked_no_echo_no_backspace_on_stdout", not l_out.has_code (8))
+			else
+				print ("  (skipped masked_no_echo: probe executable not reachable)%N")
+			end
+		end
+
+feature {NONE} -- Hidden and Masked Line Input: implementation
 
 	run_probe_case (a_tag: STRING; a_secret: STRING_32; a_terminator: STRING_8)
 			-- Feed `a_secret' followed by `a_terminator' to a child TEST_APP
@@ -597,6 +669,28 @@ feature {NONE} -- Hidden Line Input: implementation
 			l_bytes := {UTF_CONVERTER}.string_32_to_utf_8_string_8 (a_secret)
 			l_bytes.append (a_terminator)
 			if attached probe_output (l_bytes, a_tag) as l_out then
+				assert_string_contains (a_tag + "_stdin_not_a_console", l_out, "CONSOLE:False")
+				assert_string_contains (a_tag + "_code_points", l_out, expected_line (a_secret))
+			else
+				print ("  (skipped " + a_tag + ": probe executable not reachable)%N")
+			end
+		end
+
+	run_masked_probe_case (a_tag: STRING; a_secret: STRING_32; a_terminator: STRING_8)
+			-- Feed `a_secret' followed by `a_terminator' to a child TEST_APP over
+			-- a redirected standard input, running it in `--masked-line-probe'
+			-- mode, then check what `read_masked_line' handed back, code point
+			-- by code point - the same check `run_probe_case' makes for
+			-- `read_hidden_line', because the redirected path is defined to
+			-- behave identically.
+		require
+			tag_not_empty: not a_tag.is_empty
+		local
+			l_bytes: STRING_8
+		do
+			l_bytes := {UTF_CONVERTER}.string_32_to_utf_8_string_8 (a_secret)
+			l_bytes.append (a_terminator)
+			if attached masked_probe_output (l_bytes, a_tag) as l_out then
 				assert_string_contains (a_tag + "_stdin_not_a_console", l_out, "CONSOLE:False")
 				assert_string_contains (a_tag + "_code_points", l_out, expected_line (a_secret))
 			else
@@ -627,9 +721,28 @@ feature {NONE} -- Hidden Line Input: implementation
 		end
 
 	probe_output (a_input: STRING_8; a_tag: STRING): detachable STRING_8
-			-- Standard output of this very executable re-run in probe mode with
-			-- `a_input' redirected onto its standard input; Void if the
+			-- Standard output of this very executable re-run in `--hidden-line-probe'
+			-- mode with `a_input' redirected onto its standard input; Void if the
 			-- executable could not be found, run, or read back.
+		do
+			Result := probe_output_for (a_input, a_tag, Hidden_probe_option)
+		end
+
+	masked_probe_output (a_input: STRING_8; a_tag: STRING): detachable STRING_8
+			-- The same as `probe_output', but re-runs this executable in
+			-- `--masked-line-probe' mode instead, driving `read_masked_line' over
+			-- the identical redirected-stdin path.
+		do
+			Result := probe_output_for (a_input, a_tag, Masked_probe_option)
+		end
+
+	probe_output_for (a_input: STRING_8; a_tag: STRING; a_option: STRING): detachable STRING_8
+			-- Standard output of this very executable re-run with `a_option' on
+			-- its command line and `a_input' redirected onto its standard input;
+			-- Void if the executable could not be found, run, or read back.
+			-- Shared by `probe_output' and `masked_probe_output' - the only
+			-- difference between the hidden-line and masked-line redirected-path
+			-- tests is which probe mode the child is told to run.
 		local
 			l_exe, l_dir, l_in, l_out, l_cmd: STRING_8
 			l_f: RAW_FILE
@@ -665,7 +778,7 @@ feature {NONE} -- Hidden Line Input: implementation
 						-- The whole command is wrapped in one more pair of
 						-- quotes: cmd.exe strips the outermost pair, leaving
 						-- each path quoted.
-					l_cmd := "%"%"" + l_exe + "%" " + Hidden_probe_option +
+					l_cmd := "%"%"" + l_exe + "%" " + a_option +
 						" < %"" + l_in + "%" > %"" + l_out + "%"%""
 					create l_env
 					l_env.system (l_cmd)

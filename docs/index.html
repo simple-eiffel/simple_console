@@ -32,6 +32,7 @@
                 <li>Screen/line clearing</li>
                 <li>Console title setting</li>
                 <li>Hidden (no-echo) line input for password prompts</li>
+                <li>Masked (dots-per-keystroke) line input for password prompts</li>
                 <li>Thread-safe (SCOOP-compatible)</li>
             </ul>
         </section>
@@ -95,18 +96,28 @@ end</code></pre>
             <table>
                 <tr><th>Feature</th><th>Description</th></tr>
                 <tr><td><code>is_stdin_console</code></td><td>Is standard input a console, rather than a file or a pipe?</td></tr>
-                <tr><td><code>read_hidden_line</code></td><td>Read one line of standard input without echoing it; <code>Void</code> on end of input, never a partial line</td></tr>
+                <tr><td><code>read_hidden_line</code></td><td>Read one line of standard input without echoing it at all; <code>Void</code> on end of input, never a partial line</td></tr>
+                <tr><td><code>read_masked_line (a_mask)</code></td><td>Read one line, echoing <code>a_mask</code> once per character typed; same <code>Void</code>/partial-line contract</td></tr>
+                <tr><td><code>read_masked_line_default</code></td><td><code>read_masked_line</code> with <code>a_mask</code> set to <code>'*'</code></td></tr>
             </table>
             <p>When standard input is a console, <code>read_hidden_line</code> clears
             <code>ENABLE_ECHO_INPUT</code> for the read (keeping line editing and Ctrl+C),
             reads through <code>ReadConsoleW</code> in UTF-16 so a Hebrew or Greek password
-            survives, and restores the previous console mode on every exit path. When
-            standard input is redirected from a file or a pipe - as an installer's
-            verification script feeds it - the line is read the ordinary way, decoded as
-            UTF-8, and no console mode is touched. Both paths strip the trailing CR/LF.</p>
-            <pre><code>if attached con.read_hidden_line as l_password then
+            survives, and restores the previous console mode on every exit path.
+            <code>read_masked_line</code> clears <code>ENABLE_LINE_INPUT</code> too and
+            becomes the line editor itself: it prints one copy of the mask character per
+            accepted keystroke, Backspace erases the last character AND its one on-screen
+            mask, Enter ends the line, Ctrl+C keeps working, and a surrogate pair (most
+            emoji) is masked and erased as the ONE character it represents. When standard
+            input is redirected from a file or a pipe - as an installer's verification
+            script feeds it - both features behave identically: the line is read the
+            ordinary way, decoded as UTF-8, no mask is printed, and no console mode is
+            touched. Both paths strip the trailing CR/LF.</p>
+            <pre><code>if attached con.read_masked_line_default as l_password then
     create_admin (l_password)
 end</code></pre>
+            <p>Use <code>read_hidden_line</code> instead where even the keystroke count
+            should stay unseen - a shared or recorded screen.</p>
         </section>
 
         <section id="colors">
