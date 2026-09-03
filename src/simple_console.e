@@ -5,6 +5,7 @@ note
 
 		Features:
 		- Win32 console API wrapper using Eric Bezault inline C pattern
+		- Hidden (no-echo) line input for password prompts
 		- Aggressive Design by Contract (DBC) with preconditions, postconditions, invariants
 		- Optional structured logging via SIMPLE_LOGGER
 		- Full error tracking and last operation status
@@ -367,6 +368,45 @@ feature -- CLI Output Helpers
 			print ("%N")
 		end
 
+feature -- Input
+
+	is_stdin_console: BOOLEAN
+			-- Is standard input a real console, rather than a file or a pipe
+			-- redirected into this process?
+			-- `read_hidden_line' suppresses echo only when this is True.
+			-- Note this asks about standard INPUT; `has_real_console' asks
+			-- about standard output, and the two can differ - a program whose
+			-- output is piped to a log still reads from the keyboard.
+		do
+			Result := c_sc_is_stdin_console /= 0
+		end
+
+	read_hidden_line: detachable STRING_32
+			-- One line of standard input, read WITHOUT echoing what the user
+			-- types when `is_stdin_console' - and read as an ordinary line,
+			-- console modes untouched, when standard input is redirected from
+			-- a file or a pipe, which is how an installer's verification
+			-- script feeds a password in.
+			--
+			-- Void on end of input or on failure, NEVER a partial line. A line
+			-- the user ended by pressing Enter alone is the empty string, not
+			-- Void. The trailing CR and/or LF is stripped on both paths.
+			--
+			-- Written for password prompts. A `--create-admin' that reads with
+			-- `io.read_line' leaves the host's password in the console log,
+			-- which is exactly how one was published on 2026-09-02.
+		do
+			if is_stdin_console then
+				Result := hidden_line_from_console
+			else
+				Result := plain_line_from_redirected_input
+			end
+		ensure
+			line_exactly_when_succeeded: (Result /= Void) = last_operation_succeeded
+			error_cleared_on_success: last_operation_succeeded implies last_error_message.is_empty
+			error_set_on_failure: not last_operation_succeeded implies not last_error_message.is_empty
+		end
+
 feature -- Status
 
 	last_operation_succeeded: BOOLEAN
@@ -495,6 +535,92 @@ feature -- Color Constants
 	Yellow: INTEGER = 14
 	White: INTEGER = 15
 
+feature {NONE} -- Input Implementation
+
+	hidden_line_from_console: detachable STRING_32
+			-- One line read from the console with `ENABLE_ECHO_INPUT' cleared
+			-- for the duration of the read and restored immediately after it.
+		require
+			stdin_is_console: is_stdin_console
+		local
+			l_buffer: MANAGED_POINTER
+			l_count, i: INTEGER
+		do
+				-- The buffer is C heap on purpose. `c_sc_read_hidden_line' is
+				-- marked `blocking' because it waits on the user, which lets a
+				-- garbage collection run - and move Eiffel objects - while C
+				-- still holds this address. A `SPECIAL''s `base_address' would
+				-- become a dangling pointer the moment the collector moved it;
+				-- a MANAGED_POINTER's memory does not move. (The rule this
+				-- follows: simple_encryption CHANGELOG 2.1.1 - an external that
+				-- hands C the address of an Eiffel area must NOT be marked, and
+				-- an external that is marked must hand C nothing but C heap.)
+			create l_buffer.make (Hidden_line_capacity * Utf_16_unit_bytes)
+			l_count := c_sc_read_hidden_line (l_buffer.item, Hidden_line_capacity)
+			if l_count >= 0 then
+				Result := {UTF_CONVERTER}.utf_16_0_subpointer_to_string_32 (l_buffer, 0, l_count - 1, False)
+				last_operation_succeeded := True
+				last_error_message := ""
+				log_debug ("read_hidden_line: console path, " + l_count.out + " code units")
+			else
+				last_operation_succeeded := False
+				last_error_message := "Failed to read a hidden line from the console"
+				log_error (last_error_message)
+			end
+				-- The buffer held a secret. Overwrite it before letting go.
+			from
+				i := 0
+			until
+				i >= Hidden_line_capacity
+			loop
+				l_buffer.put_natural_16 (0, i * Utf_16_unit_bytes)
+				i := i + 1
+			end
+				-- The user's Enter was not echoed either, so end the line here.
+			io.put_new_line
+		ensure
+			line_exactly_when_succeeded: (Result /= Void) = last_operation_succeeded
+		end
+
+	plain_line_from_redirected_input: detachable STRING_32
+			-- One line read the ordinary way from redirected standard input and
+			-- decoded as UTF-8. No console mode is touched on this path, and
+			-- nothing is hidden - stdin is a file or a pipe, so there is no
+			-- terminal to hide it from.
+		local
+			l_line: STRING_8
+		do
+			if io.input.file_readable then
+				io.input.read_line
+				l_line := io.input.last_string.twin
+					-- A CRLF file fed in on Windows can leave the CR behind.
+				from
+				until
+					l_line.is_empty or else
+						(l_line.item (l_line.count) /= '%R' and l_line.item (l_line.count) /= '%N')
+				loop
+					l_line.remove_tail (1)
+				end
+				if l_line.is_empty and then io.input.end_of_file then
+						-- Nothing was there to read: end of input, not a line.
+					last_operation_succeeded := False
+					last_error_message := "End of input: no line to read"
+					log_error (last_error_message)
+				else
+					Result := {UTF_CONVERTER}.utf_8_string_8_to_string_32 (l_line)
+					last_operation_succeeded := True
+					last_error_message := ""
+					log_debug ("read_hidden_line: redirected path, " + l_line.count.out + " bytes")
+				end
+			else
+				last_operation_succeeded := False
+				last_error_message := "Standard input is not readable"
+				log_error (last_error_message)
+			end
+		ensure
+			line_exactly_when_succeeded: (Result /= Void) = last_operation_succeeded
+		end
+
 feature {NONE} -- Logging Implementation
 
 	log_debug (a_message: STRING)
@@ -604,7 +730,45 @@ feature {NONE} -- C externals (using simple_console.h)
 		alias "return sc_has_real_console();"
 		end
 
+	c_sc_is_stdin_console: INTEGER
+			-- Deliberately NOT `blocking': one `GetConsoleMode' on a handle this
+			-- process already owns, measured in microseconds. It cannot wait on
+			-- anything, and marking a call this short would cost two runtime
+			-- transitions to save nothing.
+		external "C inline use %"simple_console.h%""
+		alias "return sc_is_stdin_console();"
+		end
+
+	c_sc_read_hidden_line (a_buffer: POINTER; a_capacity: INTEGER): INTEGER
+			-- MARKED `blocking', and it must stay marked. `ReadConsoleW' WAITS -
+			-- for as long as the user takes to type a password and press Enter,
+			-- which may be minutes. ISE's garbage collector stops every thread of
+			-- the system before it collects, and a thread inside an UNMARKED
+			-- external is one the runtime can neither see nor stop: the collection
+			-- waits for that call to return, and every other processor waits with
+			-- it, at its very next allocation. A server that prompted for a
+			-- password on one processor would freeze the rest of itself until the
+			-- prompt was answered. The marker tells the runtime this thread has
+			-- left Eiffel, so a collection may proceed without it. (Fleet law,
+			-- proved in simple_winhttp 0.1.1 and simple_encryption 2.1.1 on
+			-- 2026-09-02: a C external that waits must be marked `C blocking'.)
+			--
+			-- Marking is SAFE here only because `a_buffer' is a MANAGED_POINTER -
+			-- C heap, which no collection moves. It must never be handed the
+			-- `base_address' of an Eiffel SPECIAL: the marker removes exactly the
+			-- accidental protection such an address relies on.
+		external "C blocking inline use %"simple_console.h%""
+		alias "return sc_read_hidden_line((void *)$a_buffer, (int)$a_capacity);"
+		end
+
 feature {NONE} -- Constants
+
+	Hidden_line_capacity: INTEGER = 1024
+			-- Room, in UTF-16 code units, for one hidden line including its
+			-- terminating null. The console read truncates beyond it.
+
+	Utf_16_unit_bytes: INTEGER = 2
+			-- Bytes in one UTF-16 code unit.
 
 	Color_nibble_shift: INTEGER = 4
 			-- Bit shift to place background color in high nibble

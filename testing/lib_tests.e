@@ -520,6 +520,187 @@ feature -- Test routines: Error Handling
 			end
 		end
 
+feature -- Hidden Line Input: driving constant
+
+	Hidden_probe_option: STRING = "--hidden-line-probe"
+			-- Command-line option that puts TEST_APP into probe mode: it reads
+			-- ONE line with `SIMPLE_CONSOLE.read_hidden_line' and reports what
+			-- came back, so these tests can drive the real feature in a real
+			-- process whose standard input is really redirected.
+
+feature -- Test routines: Hidden Line Input
+
+	test_is_stdin_console_is_answerable
+			-- `is_stdin_console' answers, whatever standard input happens to be.
+		local
+			l_con: SIMPLE_CONSOLE
+		do
+			create l_con
+			assert ("is_stdin_console_answers", l_con.is_stdin_console or not l_con.is_stdin_console)
+			print ("is_stdin_console: " + l_con.is_stdin_console.out + "%N")
+		end
+
+	test_hidden_line_redirected_ascii
+			-- A plain ASCII password over a redirected, LF-terminated stdin.
+		do
+			run_probe_case ("ascii_lf", {STRING_32} "hunter2", "%N")
+		end
+
+	test_hidden_line_redirected_crlf
+			-- A CRLF file - which is what a Windows verification script writes -
+			-- must not leave the CR on the end of the password.
+		do
+			run_probe_case ("ascii_crlf", {STRING_32} "P@ssw0rd!", "%R%N")
+		end
+
+	test_hidden_line_redirected_unicode
+			-- Hebrew and Greek in a password survive the round trip.
+			-- Written as code points so this source file stays ASCII and holds
+			-- no bidirectional text: shalom, a hyphen, logos, a digit pair.
+		do
+			run_probe_case ("unicode_lf",
+				{STRING_32} "%/1513/%/1500/%/1493/%/1501/-%/955/%/972/%/947/%/959/%/962/-42", "%N")
+		end
+
+	test_hidden_line_redirected_end_of_input
+			-- Nothing at all on standard input is Void, never a partial line.
+		do
+			if attached probe_output ("", "eof") as l_out then
+				assert_string_contains ("reports_void", l_out, "VOID")
+				assert_string_contains ("stdin_not_a_console", l_out, "CONSOLE:False")
+			else
+				print ("  (skipped eof: probe executable not reachable)%N")
+			end
+		end
+
+	test_hidden_line_redirected_empty_line
+			-- A line the user ended immediately is the empty string, not Void.
+		do
+			if attached probe_output ("%N", "empty_line") as l_out then
+				assert_string_contains ("reports_an_empty_line", l_out, "LINE:0:")
+			else
+				print ("  (skipped empty_line: probe executable not reachable)%N")
+			end
+		end
+
+feature {NONE} -- Hidden Line Input: implementation
+
+	run_probe_case (a_tag: STRING; a_secret: STRING_32; a_terminator: STRING_8)
+			-- Feed `a_secret' followed by `a_terminator' to a child TEST_APP
+			-- over a redirected standard input, then check what
+			-- `read_hidden_line' handed back, code point by code point.
+		require
+			tag_not_empty: not a_tag.is_empty
+		local
+			l_bytes: STRING_8
+		do
+			l_bytes := {UTF_CONVERTER}.string_32_to_utf_8_string_8 (a_secret)
+			l_bytes.append (a_terminator)
+			if attached probe_output (l_bytes, a_tag) as l_out then
+				assert_string_contains (a_tag + "_stdin_not_a_console", l_out, "CONSOLE:False")
+				assert_string_contains (a_tag + "_code_points", l_out, expected_line (a_secret))
+			else
+				print ("  (skipped " + a_tag + ": probe executable not reachable)%N")
+			end
+		end
+
+	expected_line (a_secret: STRING_32): STRING_8
+			-- The probe's rendering of `a_secret': "LINE:<count>:<cp>,<cp>,...".
+		local
+			i: INTEGER
+		do
+			create Result.make (32)
+			Result.append ("LINE:")
+			Result.append (a_secret.count.out)
+			Result.append_character (':')
+			from
+				i := 1
+			until
+				i > a_secret.count
+			loop
+				if i > 1 then
+					Result.append_character (',')
+				end
+				Result.append (a_secret.code (i).out)
+				i := i + 1
+			end
+		end
+
+	probe_output (a_input: STRING_8; a_tag: STRING): detachable STRING_8
+			-- Standard output of this very executable re-run in probe mode with
+			-- `a_input' redirected onto its standard input; Void if the
+			-- executable could not be found, run, or read back.
+		local
+			l_exe, l_dir, l_in, l_out, l_cmd: STRING_8
+			l_f: RAW_FILE
+			l_env: EXECUTION_ENVIRONMENT
+			l_args: ARGUMENTS_32
+			i: INTEGER
+			l_failed: BOOLEAN
+		do
+			if not l_failed then
+				create l_args
+				l_exe := {UTF_CONVERTER}.utf_32_string_to_utf_8_string_8 (l_args.argument (0))
+				create l_f.make_with_name (l_exe)
+				if l_f.exists then
+						-- Keep the directory, separator included, so the temp
+						-- files land beside the executable and not wherever the
+						-- test runner happened to be started from.
+					l_dir := l_exe.twin
+					from
+						i := l_dir.count
+					until
+						i = 0 or else (l_dir.item (i) = '%/92/' or l_dir.item (i) = '/')
+					loop
+						i := i - 1
+					end
+					l_dir.keep_head (i)
+					l_in := l_dir + "sc_probe_" + a_tag + "_in.tmp"
+					l_out := l_dir + "sc_probe_" + a_tag + "_out.tmp"
+
+					create l_f.make_open_write (l_in)
+					l_f.put_string (a_input)
+					l_f.close
+
+						-- The whole command is wrapped in one more pair of
+						-- quotes: cmd.exe strips the outermost pair, leaving
+						-- each path quoted.
+					l_cmd := "%"%"" + l_exe + "%" " + Hidden_probe_option +
+						" < %"" + l_in + "%" > %"" + l_out + "%"%""
+					create l_env
+					l_env.system (l_cmd)
+
+					create l_f.make_with_name (l_out)
+					if l_f.exists and then l_f.is_readable then
+						l_f.open_read
+						if l_f.count > 0 then
+							l_f.read_stream (l_f.count)
+							Result := l_f.last_string.twin
+						else
+							Result := ""
+						end
+						l_f.close
+					end
+					remove_temporary_file (l_in)
+					remove_temporary_file (l_out)
+				end
+			end
+		rescue
+			l_failed := True
+			retry
+		end
+
+	remove_temporary_file (a_path: STRING_8)
+			-- Delete `a_path' if it is there; say nothing if it is not.
+		local
+			l_f: RAW_FILE
+		do
+			create l_f.make_with_name (a_path)
+			if l_f.exists then
+				l_f.delete
+			end
+		end
+
 feature -- Test routines: Invariant Verification
 
 	test_invariant_holds

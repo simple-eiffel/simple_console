@@ -180,6 +180,79 @@ static int sc_has_pending_input(void) {
     return (numEvents > 0) ? 1 : 0;
 }
 
+/* ============ HIDDEN (NO-ECHO) LINE INPUT ============
+ *
+ * sc_is_stdin_console  - is STDIN a real console, not a file or a pipe?
+ * sc_read_hidden_line  - read ONE line from the console with echo off.
+ *
+ * The whole mode dance lives inside sc_read_hidden_line, in C, so that the
+ * caller's console mode is restored on EVERY exit path. A console left
+ * without ENABLE_ECHO_INPUT is a console the user cannot see themselves
+ * type in again, for the rest of the session - so the restore must not be
+ * reachable only through a happy path, and must not depend on an Eiffel
+ * rescue clause running.
+ */
+
+static int sc_is_stdin_console(void) {
+    DWORD mode;
+    HANDLE h = GetStdHandle(STD_INPUT_HANDLE);
+    if (h == INVALID_HANDLE_VALUE || h == NULL) return 0;
+    return GetConsoleMode(h, &mode) ? 1 : 0;
+}
+
+/* Read one line from the console into a_buffer with echo suppressed.
+ *
+ * a_buffer   - caller-owned buffer of a_capacity UTF-16 code units. It must
+ *              NOT be Eiffel-collected memory: the Eiffel wrapper marks its
+ *              external `blocking', so a collection may run - and move
+ *              objects - while this function is still waiting on the user.
+ * a_capacity - code units including room for the terminating NUL.
+ *
+ * Returns the number of code units stored, with the trailing CR / LF
+ * stripped and a NUL written after them; 0 for a line the user just pressed
+ * Enter on. Returns -1 on end-of-input (Ctrl+Z), on a read error, or when
+ * STDIN is not a console - and in that case stores nothing, so a caller can
+ * never mistake a partial read for a line.
+ */
+static int sc_read_hidden_line(void* a_buffer, int a_capacity) {
+    HANDLE h;
+    DWORD old_mode = 0;
+    DWORD units_read = 0;
+    int n;
+    BOOL ok;
+    WCHAR* buf = (WCHAR*)a_buffer;
+
+    if (buf == NULL || a_capacity <= 1) return -1;
+    buf[0] = 0;
+
+    h = GetStdHandle(STD_INPUT_HANDLE);
+    if (h == INVALID_HANDLE_VALUE || h == NULL) return -1;
+
+    /* GetConsoleMode fails on a redirected handle: that case belongs to the
+       caller's plain-line path, not here. */
+    if (!GetConsoleMode(h, &old_mode)) return -1;
+
+    /* Clear ONLY the echo. ENABLE_LINE_INPUT stays, so Backspace still
+       edits the line and Enter still ends it; ENABLE_PROCESSED_INPUT stays,
+       so Ctrl+C still reaches the process. */
+    if (!SetConsoleMode(h, old_mode & ~((DWORD)ENABLE_ECHO_INPUT))) return -1;
+
+    ok = ReadConsoleW(h, buf, (DWORD)(a_capacity - 1), &units_read, NULL);
+
+    /* ALWAYS restore - success or failure, before anything else is decided. */
+    SetConsoleMode(h, old_mode);
+
+    if (!ok || units_read == 0) {
+        buf[0] = 0;
+        return -1;
+    }
+
+    n = (int)units_read;
+    while (n > 0 && (buf[n - 1] == L'\n' || buf[n - 1] == L'\r')) n--;
+    buf[n] = 0;
+    return n;
+}
+
 #else
 /* ============ UNIX/LINUX IMPLEMENTATION ============ */
 /* Uses ANSI escape sequences for terminal control */
@@ -325,6 +398,84 @@ static int sc_is_cursor_visible(void) {
 static int sc_has_real_console(void) {
     /* Check if stdout is a terminal */
     return isatty(STDOUT_FILENO) ? 1 : 0;
+}
+
+/* ============ HIDDEN (NO-ECHO) LINE INPUT ============
+ *
+ * POSIX parity for the Windows routines of the same names. Same contract,
+ * same restore-always discipline (termios instead of console modes), and
+ * the same UTF-16 output buffer, so the Eiffel side decodes one encoding on
+ * every platform.
+ *
+ * NOTE: simple_console ships and is exercised on Windows. This branch is
+ * written for parity and has not been run.
+ */
+
+static int sc_is_stdin_console(void) {
+    return isatty(STDIN_FILENO) ? 1 : 0;
+}
+
+static int sc_read_hidden_line(void* a_buffer, int a_capacity) {
+    unsigned short* out = (unsigned short*)a_buffer;
+    struct termios old_t, new_t;
+    unsigned char bytes[4096];
+    int len = 0, i = 0, n = 0;
+    ssize_t got = 0;
+
+    if (out == NULL || a_capacity <= 2) return -1;
+    out[0] = 0;
+
+    if (!isatty(STDIN_FILENO)) return -1;
+    if (tcgetattr(STDIN_FILENO, &old_t) != 0) return -1;
+
+    new_t = old_t;
+    new_t.c_lflag &= ~ECHO;   /* ICANON stays: Backspace still edits the line */
+    if (tcsetattr(STDIN_FILENO, TCSAFLUSH, &new_t) != 0) return -1;
+
+    while (len < (int)sizeof(bytes)) {
+        got = read(STDIN_FILENO, bytes + len, 1);
+        if (got <= 0) break;
+        if (bytes[len] == '\n') break;
+        len++;
+    }
+
+    /* ALWAYS restore. */
+    tcsetattr(STDIN_FILENO, TCSAFLUSH, &old_t);
+
+    if (len == 0 && got <= 0) {
+        out[0] = 0;
+        return -1;   /* end of input */
+    }
+
+    while (len > 0 && (bytes[len - 1] == '\r' || bytes[len - 1] == '\n')) len--;
+
+    /* UTF-8 in, UTF-16 out. */
+    while (i < len && n < a_capacity - 2) {
+        unsigned int cp = bytes[i];
+        int extra;
+        if (cp < 0x80)                 { extra = 0; }
+        else if ((cp & 0xE0) == 0xC0)  { cp &= 0x1F; extra = 1; }
+        else if ((cp & 0xF0) == 0xE0)  { cp &= 0x0F; extra = 2; }
+        else if ((cp & 0xF8) == 0xF0)  { cp &= 0x07; extra = 3; }
+        else                           { cp = 0xFFFD; extra = 0; }
+        i++;
+        while (extra > 0 && i < len && (bytes[i] & 0xC0) == 0x80) {
+            cp = (cp << 6) | (unsigned int)(bytes[i] & 0x3F);
+            i++; extra--;
+        }
+        if (extra != 0) cp = 0xFFFD;
+        if (cp >= 0x10000 && cp <= 0x10FFFF) {
+            cp -= 0x10000;
+            out[n++] = (unsigned short)(0xD800 + (cp >> 10));
+            out[n++] = (unsigned short)(0xDC00 + (cp & 0x3FF));
+        } else {
+            out[n++] = (unsigned short)cp;
+        }
+    }
+    out[n] = 0;
+
+    memset(bytes, 0, sizeof(bytes));   /* it held the secret */
+    return n;
 }
 
 #endif /* _WIN32 */
