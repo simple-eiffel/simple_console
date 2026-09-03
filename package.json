@@ -1,9 +1,9 @@
 {
   "name": "simple_console",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Simple Console Library - SCOOP-compatible with inline C",
   "author": "Larry Rix",
   "license": "MIT",
   "category": "cli",
-  "keywords": ["console", "terminal", "ansi", "colors", "password", "no-echo"]
+  "keywords": ["console", "terminal", "ansi", "colors", "password", "no-echo", "masked-input"]
 }

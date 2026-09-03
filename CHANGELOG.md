@@ -5,6 +5,89 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.0] - 2026-09-03
+
+### Added
+
+- **`read_masked_line (a_mask: CHARACTER_32): detachable STRING_32`** and
+  **`read_masked_line_default: detachable STRING_32`** (the same, with
+  `a_mask` fixed at `'*'`) - read ONE line of standard input the way
+  `read_hidden_line` does, except on a real console it echoes one copy of
+  `a_mask` for every character accepted, so the typist can see their
+  keystrokes are registering without the console ever showing what was
+  typed. Added after using 1.1.0's fully-silent `read_hidden_line` in an
+  installer console:
+
+  > I was surprised by not even have dots for pw chars. That meant that I
+  > didn't know whether my keystrokes were being registered. So, the dots
+  > would really help.
+
+  The feature picks its own path, the same way `read_hidden_line` does:
+
+  - **stdin is a console** - `ENABLE_LINE_INPUT` and `ENABLE_ECHO_INPUT` are
+    both cleared, and the C side becomes the line editor itself, reading one
+    key event at a time with `ReadConsoleInputW` (the same primitive
+    `sc_read_key` already used for a single key). Backspace removes the last
+    character typed and erases its one on-screen mask (a backspace, a space,
+    a backspace); Enter ends the line and prints its own newline, because
+    the user's Enter is not echoed either; `ENABLE_PROCESSED_INPUT` is left
+    exactly as `GetConsoleMode` found it, so Ctrl+C keeps working precisely
+    the way it does for `read_hidden_line`; a surrogate pair - most emoji,
+    for instance - is two UTF-16 code units but ONE accepted character: one
+    mask is printed for the pair, and one Backspace erases both units and
+    the mask together; every other non-character key (arrows, function
+    keys, and the like) is silently ignored. The previous console mode is
+    restored on **every** exit path, in C, the same restore-always
+    discipline `read_hidden_line` already keeps.
+  - **stdin is redirected** from a file or a pipe - this is IDENTICAL to
+    `read_hidden_line`: a plain line, decoded as UTF-8, no mask printed, no
+    console mode touched, so an installer's verification script that feeds
+    passwords from a file keeps working unchanged.
+
+  Both paths strip the trailing CR and/or LF; `Void` on end of input or
+  failure, never a partial line; a line ended by Enter alone is the empty
+  string, not `Void` - the same contract `read_hidden_line` keeps.
+  `read_hidden_line` itself is unchanged, and is still the right choice
+  where even the keystroke COUNT should stay unseen - a shared or recorded
+  screen.
+
+### Notes on the C layer
+
+- `c_sc_read_masked_line` is marked **`external "C blocking inline"`**, for
+  the same reason `c_sc_read_hidden_line` is: `ReadConsoleInputW` waits on
+  the user, one key at a time, for as long as a password takes to type, and
+  the same fleet law applies (proved in simple_winhttp 0.1.1 and
+  simple_encryption 2.1.1 on 2026-09-02). The read buffer is a
+  `MANAGED_POINTER` - C heap - for the same reason, and is overwritten with
+  zeroes after the line is copied out, because it held a secret.
+- The C layer's POSIX branch gained a parity `sc_read_masked_line` alongside
+  the existing `sc_read_hidden_line` one. Same disclaimer as its sibling:
+  simple_console ships and is exercised on Windows; the POSIX branch is
+  written for parity and has not been run.
+
+### Tests
+
+37 passing before, 43 after; zero compiler warnings on a clean compile of
+both targets. The six new tests cover the redirected path: the same five
+shapes proven for `read_hidden_line` (ASCII, CRLF, Hebrew-and-Greek, an
+empty line, and an empty file), re-run against `read_masked_line` through a
+new `--masked-line-probe` mode, plus one more asserting that NEITHER a mask
+character nor a Backspace-erase sequence is ever written to standard output
+on the redirected path - the whole point of that path being that it is
+indistinguishable from `read_hidden_line`.
+
+**The console path is exercised headlessly**, unlike `read_hidden_line`'s:
+`testing/masked_line_conpty_test.py` spawns the test executable inside a
+Windows pseudoconsole (ConPTY, via `pywinpty`) - which opens no visible
+window and steals no focus - types `abc`, Backspace, `d`, Enter, and asserts
+the captured screen output shows the mask count go 1, 2, 3, then drop to 2
+on Backspace, then rise back to 3, that the code points reported back are
+97, 98, 100 (`a`, `b`, `d` - proving Backspace removed `c` and nothing
+else), and that the literal string `"abcd"` never appears anywhere in the
+captured output. `--masked-line-demo` on the test executable is the manual
+fallback and what to look for if `pywinpty` is not available; the README
+says what to look for there too.
+
 ## [1.1.0] - 2026-09-03
 
 ### Added
@@ -103,6 +186,7 @@ README says what to look for.
 - Test suite with comprehensive coverage
 - Documentation and examples
 
-[Unreleased]: https://github.com/simple-eiffel/simple_console/compare/v1.1.0...HEAD
+[Unreleased]: https://github.com/simple-eiffel/simple_console/compare/v1.2.0...HEAD
+[1.2.0]: https://github.com/simple-eiffel/simple_console/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/simple-eiffel/simple_console/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/simple-eiffel/simple_console/releases/tag/v1.0.0

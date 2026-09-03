@@ -253,6 +253,162 @@ static int sc_read_hidden_line(void* a_buffer, int a_capacity) {
     return n;
 }
 
+/* ============ MASKED (VISIBLE-DOTS) LINE INPUT ============
+ *
+ * sc_read_masked_line - like sc_read_hidden_line, but prints one copy of a
+ * caller-chosen mask character for every character accepted, so the typist
+ * can see their keystrokes are registering without the console ever
+ * showing what was typed. Added after Larry used 1.1.0's fully-silent
+ * `read_hidden_line' in an installer console: "I was surprised by not even
+ * have dots for pw chars. That meant that I didn't know whether my
+ * keystrokes were being registered. So, the dots would really help."
+ *
+ * `sc_read_hidden_line' hands the whole job to ReadConsoleW with only
+ * ENABLE_ECHO_INPUT cleared, so Windows' own line editor still does
+ * Backspace and Enter for it. This function cannot do that - Windows has no
+ * mode that echoes a substitute character - so it clears ENABLE_LINE_INPUT
+ * too and becomes the line editor itself, reading one key event at a time
+ * with ReadConsoleInputW the way `sc_read_key' above does for a single key.
+ * It is deliberately the ONLY place that decides what counts as a
+ * character, what Backspace erases, and when the line ends - the same
+ * restore-on-every-exit-path discipline as `sc_read_hidden_line', for the
+ * same reason: a console left without its saved mode is one the user
+ * cannot see themselves type into again for the rest of the session.
+ *
+ * a_buffer    - caller-owned buffer of a_capacity UTF-16 code units. Must be
+ *               C heap (a MANAGED_POINTER on the Eiffel side), never the
+ *               `base_address' of an Eiffel SPECIAL: this external is
+ *               marked `C blocking' because it waits on the user, which
+ *               lets a garbage collection run - and move Eiffel objects -
+ *               while this function still holds the address.
+ * a_capacity  - code units, including room for the terminating NUL.
+ * a_mask_cp   - Unicode code point printed once per accepted character.
+ *
+ * Returns the number of UTF-16 code units stored (0 for Enter pressed
+ * immediately, no CR/LF among them); -1 on a read error or when STDIN is
+ * not a console - `a_buffer' is left holding nothing on that path, so a
+ * caller can never mistake a partial line for a whole one.
+ *
+ * A surrogate pair (a character outside the Basic Multilingual Plane - most
+ * emoji, for instance) is two UTF-16 code units but ONE accepted character:
+ * one mask is printed for the pair, and one Backspace erases both units and
+ * the one mask together. ENABLE_PROCESSED_INPUT is left exactly as
+ * `GetConsoleMode' found it, so Ctrl+C keeps working precisely the way it
+ * does for `sc_read_hidden_line'.
+ */
+static int sc_read_masked_line(void* a_buffer, int a_capacity, unsigned int a_mask_cp) {
+    HANDLE hIn, hOut;
+    DWORD old_mode = 0;
+    DWORD num_read = 0;
+    DWORD written = 0;
+    INPUT_RECORD ir;
+    WCHAR* buf = (WCHAR*)a_buffer;
+    WCHAR mask_units[2];
+    int mask_len;
+    int count = 0;
+    WCHAR pending_high = 0;
+    BOOL done = FALSE;
+    BOOL failed = FALSE;
+
+    if (buf == NULL || a_capacity <= 1) return -1;
+    buf[0] = 0;
+
+    hIn = GetStdHandle(STD_INPUT_HANDLE);
+    if (hIn == INVALID_HANDLE_VALUE || hIn == NULL) return -1;
+
+    /* GetConsoleMode fails on a redirected handle: that case belongs to the
+       caller's plain-line path, not here. */
+    if (!GetConsoleMode(hIn, &old_mode)) return -1;
+
+    hOut = GetStdHandle(STD_OUTPUT_HANDLE);
+
+    /* Encode the mask character to UTF-16 once, outside the key loop. */
+    if (a_mask_cp >= 0x10000 && a_mask_cp <= 0x10FFFF) {
+        unsigned int v = a_mask_cp - 0x10000;
+        mask_units[0] = (WCHAR)(0xD800 + (v >> 10));
+        mask_units[1] = (WCHAR)(0xDC00 + (v & 0x3FF));
+        mask_len = 2;
+    } else {
+        mask_units[0] = (WCHAR)a_mask_cp;
+        mask_len = 1;
+    }
+
+    /* Clear line editing and echo; every other bit - ENABLE_PROCESSED_INPUT
+       included - is carried over unchanged from the mode we just read. */
+    if (!SetConsoleMode(hIn, old_mode & ~((DWORD)(ENABLE_LINE_INPUT | ENABLE_ECHO_INPUT)))) {
+        return -1;
+    }
+
+    while (!done && !failed) {
+        if (!ReadConsoleInputW(hIn, &ir, 1, &num_read) || num_read == 0) {
+            failed = TRUE;
+        } else if (ir.EventType == KEY_EVENT && ir.Event.KeyEvent.bKeyDown) {
+            WORD vk = ir.Event.KeyEvent.wVirtualKeyCode;
+            WCHAR ch = ir.Event.KeyEvent.uChar.UnicodeChar;
+
+            if (vk == VK_RETURN) {
+                if (hOut != INVALID_HANDLE_VALUE) {
+                    WriteConsoleW(hOut, L"\r\n", 2, &written, NULL);
+                }
+                done = TRUE;
+            } else if (vk == VK_BACK) {
+                if (count > 0) {
+                    if (count >= 2 && buf[count - 1] >= 0xDC00 && buf[count - 1] <= 0xDFFF &&
+                        buf[count - 2] >= 0xD800 && buf[count - 2] <= 0xDBFF) {
+                        count -= 2;
+                    } else {
+                        count -= 1;
+                    }
+                    buf[count] = 0;
+                    if (hOut != INVALID_HANDLE_VALUE) {
+                        WriteConsoleW(hOut, L"\b \b", 3, &written, NULL);
+                    }
+                }
+                pending_high = 0;   /* Backspace also cancels a lone pending high surrogate. */
+            } else if (ch == 0 || ch < 0x20 || ch == 0x7F) {
+                /* Not a character: arrow/function/modifier keys read as
+                   ch == 0; Tab, Esc, Ctrl+letter and friends read as other
+                   control codes below 0x20, or DEL. None are accepted. */
+            } else if (ch >= 0xD800 && ch <= 0xDBFF) {
+                pending_high = ch;   /* High surrogate: wait for its low half. */
+            } else if (ch >= 0xDC00 && ch <= 0xDFFF) {
+                if (pending_high != 0 && count + 2 <= a_capacity - 1) {
+                    buf[count++] = pending_high;
+                    buf[count++] = ch;
+                    buf[count] = 0;
+                    if (hOut != INVALID_HANDLE_VALUE) {
+                        WriteConsoleW(hOut, mask_units, (DWORD)mask_len, &written, NULL);
+                    }
+                }
+                pending_high = 0;   /* Paired, dropped for overflow, or unpaired: clear either way. */
+            } else {
+                /* An ordinary BMP character. A stray pending high surrogate
+                   with no low surrogate behind it was malformed input;
+                   drop it rather than pairing it with something unrelated. */
+                pending_high = 0;
+                if (count + 1 <= a_capacity - 1) {
+                    buf[count++] = ch;
+                    buf[count] = 0;
+                    if (hOut != INVALID_HANDLE_VALUE) {
+                        WriteConsoleW(hOut, mask_units, (DWORD)mask_len, &written, NULL);
+                    }
+                }
+            }
+        }
+        /* Any other event type (mouse, window-buffer-size, focus) or a
+           key-up event: read the next one. */
+    }
+
+    /* ALWAYS restore - success or failure, before anything else is decided. */
+    SetConsoleMode(hIn, old_mode);
+
+    if (failed) {
+        buf[0] = 0;
+        return -1;
+    }
+    return count;
+}
+
 #else
 /* ============ UNIX/LINUX IMPLEMENTATION ============ */
 /* Uses ANSI escape sequences for terminal control */
@@ -475,6 +631,130 @@ static int sc_read_hidden_line(void* a_buffer, int a_capacity) {
     out[n] = 0;
 
     memset(bytes, 0, sizeof(bytes));   /* it held the secret */
+    return n;
+}
+
+/* POSIX parity for `sc_read_masked_line'. Same contract: one mask per
+ * accepted character, Backspace erases the last character AND its one
+ * on-screen mask, Enter ends the line. ICANON is cleared as well as ECHO -
+ * unlike `sc_read_hidden_line' above, which needs only ECHO off because
+ * Windows' own line editor keeps working underneath it, this function must
+ * become the line editor itself, one byte at a time, the same way its
+ * Windows counterpart becomes one event at a time. ISIG is left alone, so
+ * Ctrl+C keeps working.
+ *
+ * NOTE: simple_console ships and is exercised on Windows. This branch is
+ * written for parity and has not been run.
+ */
+static int sc_read_masked_line(void* a_buffer, int a_capacity, unsigned int a_mask_cp) {
+    unsigned short* out = (unsigned short*)a_buffer;
+    struct termios old_t, new_t;
+    unsigned char mask_utf8[4];
+    int mask_utf8_len;
+    int n = 0;              /* UTF-16 code units stored in `out' so far */
+    int done = 0;
+    ssize_t got;
+    unsigned char b;
+
+    if (out == NULL || a_capacity <= 2) return -1;
+    out[0] = 0;
+
+    if (!isatty(STDIN_FILENO)) return -1;
+    if (tcgetattr(STDIN_FILENO, &old_t) != 0) return -1;
+
+    new_t = old_t;
+    new_t.c_lflag &= ~((tcflag_t)(ECHO | ICANON));   /* ISIG stays: Ctrl+C still works. */
+    if (tcsetattr(STDIN_FILENO, TCSAFLUSH, &new_t) != 0) return -1;
+
+    /* Encode the mask code point to UTF-8 once, outside the read loop. */
+    if (a_mask_cp < 0x80) {
+        mask_utf8[0] = (unsigned char)a_mask_cp;
+        mask_utf8_len = 1;
+    } else if (a_mask_cp < 0x800) {
+        mask_utf8[0] = (unsigned char)(0xC0 | (a_mask_cp >> 6));
+        mask_utf8[1] = (unsigned char)(0x80 | (a_mask_cp & 0x3F));
+        mask_utf8_len = 2;
+    } else if (a_mask_cp < 0x10000) {
+        mask_utf8[0] = (unsigned char)(0xE0 | (a_mask_cp >> 12));
+        mask_utf8[1] = (unsigned char)(0x80 | ((a_mask_cp >> 6) & 0x3F));
+        mask_utf8[2] = (unsigned char)(0x80 | (a_mask_cp & 0x3F));
+        mask_utf8_len = 3;
+    } else {
+        mask_utf8[0] = (unsigned char)(0xF0 | (a_mask_cp >> 18));
+        mask_utf8[1] = (unsigned char)(0x80 | ((a_mask_cp >> 12) & 0x3F));
+        mask_utf8[2] = (unsigned char)(0x80 | ((a_mask_cp >> 6) & 0x3F));
+        mask_utf8[3] = (unsigned char)(0x80 | (a_mask_cp & 0x3F));
+        mask_utf8_len = 4;
+    }
+
+    while (!done) {
+        got = read(STDIN_FILENO, &b, 1);
+        if (got <= 0) {
+            done = 1;
+            n = -1;   /* end of input or a read error: never a partial line */
+        } else if (b == '\n' || b == '\r') {
+            if (write(STDOUT_FILENO, "\n", 1) < 0) { /* best effort */ }
+            done = 1;
+        } else if (b == 0x7F || b == 0x08) {
+            /* Backspace: DEL (0x7F) is what a terminal conventionally sends
+               for the Backspace key; BS (0x08) is accepted too. */
+            if (n > 0) {
+                if (n >= 2 && out[n - 1] >= 0xDC00 && out[n - 1] <= 0xDFFF &&
+                    out[n - 2] >= 0xD800 && out[n - 2] <= 0xDBFF) {
+                    n -= 2;
+                } else {
+                    n -= 1;
+                }
+                out[n] = 0;
+                if (write(STDOUT_FILENO, "\b \b", 3) < 0) { /* best effort */ }
+            }
+        } else if (b < 0x20) {
+            /* Other control bytes (Tab, Esc, Ctrl+letter): not a character. */
+        } else {
+            /* Start of one UTF-8 sequence - decode it, the same bit masks
+               `sc_read_hidden_line' above decodes a whole line of at once. */
+            unsigned int cp = b;
+            int extra;
+            unsigned char cont;
+            int ci;
+            int bad = 0;
+
+            if ((b & 0xE0) == 0xC0)      { cp = b & 0x1F; extra = 1; }
+            else if ((b & 0xF0) == 0xE0) { cp = b & 0x0F; extra = 2; }
+            else if ((b & 0xF8) == 0xF0) { cp = b & 0x07; extra = 3; }
+            else if (b >= 0x80)          { extra = 0; bad = 1; }   /* stray continuation byte */
+            else                          { extra = 0; }
+
+            for (ci = 0; ci < extra && !bad; ci++) {
+                got = read(STDIN_FILENO, &cont, 1);
+                if (got <= 0 || (cont & 0xC0) != 0x80) {
+                    bad = 1;
+                } else {
+                    cp = (cp << 6) | (unsigned int)(cont & 0x3F);
+                }
+            }
+
+            if (!bad && n < a_capacity - 3) {
+                if (cp >= 0x10000 && cp <= 0x10FFFF) {
+                    unsigned int v = cp - 0x10000;
+                    out[n++] = (unsigned short)(0xD800 + (v >> 10));
+                    out[n++] = (unsigned short)(0xDC00 + (v & 0x3FF));
+                } else {
+                    out[n++] = (unsigned short)cp;
+                }
+                out[n] = 0;
+                if (write(STDOUT_FILENO, mask_utf8, (size_t)mask_utf8_len) < 0) { /* best effort */ }
+            }
+        }
+    }
+
+    /* ALWAYS restore. */
+    tcsetattr(STDIN_FILENO, TCSAFLUSH, &old_t);
+
+    if (n < 0) {
+        out[0] = 0;
+        return -1;
+    }
     return n;
 }
 

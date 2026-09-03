@@ -28,6 +28,14 @@ feature {NONE} -- Initialization
 				l_args.argument (1).same_string_general (Hidden_demo_option)
 			then
 				run_hidden_line_demo
+			elseif l_args.argument_count >= 1 and then
+				l_args.argument (1).same_string_general (tests.Masked_probe_option)
+			then
+				run_masked_line_probe
+			elseif l_args.argument_count >= 1 and then
+				l_args.argument (1).same_string_general (Masked_demo_option)
+			then
+				run_masked_line_demo
 			else
 				run_tests (tests)
 			end
@@ -108,6 +116,15 @@ feature {NONE} -- Initialization
 			run_test (agent tests.test_hidden_line_redirected_end_of_input, "test_hidden_line_redirected_end_of_input")
 			run_test (agent tests.test_hidden_line_redirected_empty_line, "test_hidden_line_redirected_empty_line")
 
+			-- Masked Line Input Tests
+			io.put_string ("%NMasked Line Input Tests:%N")
+			run_test (agent tests.test_masked_line_redirected_ascii, "test_masked_line_redirected_ascii")
+			run_test (agent tests.test_masked_line_redirected_crlf, "test_masked_line_redirected_crlf")
+			run_test (agent tests.test_masked_line_redirected_unicode, "test_masked_line_redirected_unicode")
+			run_test (agent tests.test_masked_line_redirected_end_of_input, "test_masked_line_redirected_end_of_input")
+			run_test (agent tests.test_masked_line_redirected_empty_line, "test_masked_line_redirected_empty_line")
+			run_test (agent tests.test_masked_line_redirected_prints_no_mask_characters, "test_masked_line_redirected_prints_no_mask_characters")
+
 			-- Invariant Tests
 			io.put_string ("%NInvariant Verification Tests:%N")
 			run_test (agent tests.test_invariant_holds, "test_invariant_holds")
@@ -184,6 +201,91 @@ feature {NONE} -- Implementation
 			create l_report.make (64)
 			l_report.append ("CONSOLE:" + l_con.is_stdin_console.out + "%N")
 			if attached l_con.read_hidden_line as l_line then
+				l_report.append ("LINE:" + l_line.count.out + ":")
+				from
+					i := 1
+				until
+					i > l_line.count
+				loop
+					if i > 1 then
+						l_report.append_character (',')
+					end
+					l_report.append (l_line.code (i).out)
+					i := i + 1
+				end
+				l_report.append_character ('%N')
+			else
+				l_report.append ("VOID%N")
+			end
+			io.put_string (l_report)
+		end
+
+	Masked_demo_option: STRING = "--masked-line-demo"
+			-- Command-line option that runs `run_masked_line_demo'.
+
+	run_masked_line_demo
+			-- MANUAL (or headless ConPTY) check of the console path of
+			-- `read_masked_line' - the path no redirected-stdin test in this
+			-- suite can reach, because it needs a real console. Run it from
+			-- cmd.exe, Windows Terminal, or a ConPTY - NOT through a plain pipe
+			-- and NOT from a mintty shell such as git-bash:
+			--
+			--   EIFGENs/simple_console_tests/F_code/simple_console.exe --masked-line-demo
+			--
+			-- What to look for:
+			--   1. `is_stdin_console' reports True.
+			--   2. Typing prints one `*' per character, immediately - never the
+			--      character itself.
+			--   3. Backspace erases the last `*' printed AND the character
+			--      behind it, one pair at a time.
+			--   4. Enter ends the line and moves the cursor to a fresh line,
+			--      the same as pressing Enter after `read_hidden_line' does.
+			--   5. The code points reported back are the ones you typed - try a
+			--      non-ASCII character, and try Backspace after one, if your
+			--      keyboard can produce one.
+			--   6. The SECOND line, read the ordinary way, DOES echo in full -
+			--      that is the proof the console mode was put back.
+		local
+			l_con: SIMPLE_CONSOLE
+			i: INTEGER
+		do
+			create l_con
+			io.put_string ("is_stdin_console: " + l_con.is_stdin_console.out + "%N")
+			io.put_string ("Password (each character prints as *): ")
+			if attached l_con.read_masked_line ('*') as l_line then
+				io.put_string ("read " + l_line.count.out + " characters, code points:")
+				from
+					i := 1
+				until
+					i > l_line.count
+				loop
+					io.put_string (" " + l_line.code (i).out)
+					i := i + 1
+				end
+				io.put_new_line
+			else
+				io.put_string ("end of input - nothing read%N")
+			end
+			io.put_string ("Echo check (this line SHOULD appear as you type): ")
+			io.read_line
+			io.put_string ("you typed " + io.last_string.count.out + " characters%N")
+		end
+
+	run_masked_line_probe
+			-- Read ONE line with `SIMPLE_CONSOLE.read_masked_line' and report it
+			-- on standard output as decimal code points, exactly the way
+			-- `run_hidden_line_probe' does for `read_hidden_line' - standard
+			-- input is redirected here too, so the mask argument makes no
+			-- difference: no mask is ever printed on this path.
+		local
+			l_con: SIMPLE_CONSOLE
+			l_report: STRING_8
+			i: INTEGER
+		do
+			create l_con
+			create l_report.make (64)
+			l_report.append ("CONSOLE:" + l_con.is_stdin_console.out + "%N")
+			if attached l_con.read_masked_line ('*') as l_line then
 				l_report.append ("LINE:" + l_line.count.out + ":")
 				from
 					i := 1

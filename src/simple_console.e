@@ -395,12 +395,78 @@ feature -- Input
 			-- Written for password prompts. A `--create-admin' that reads with
 			-- `io.read_line' leaves the host's password in the console log,
 			-- which is exactly how one was published on 2026-09-02.
+			--
+			-- Prefer this over `read_masked_line' when the typist should get NO
+			-- feedback at all - a shared or recorded screen, where even the
+			-- keystroke COUNT should stay unseen. `read_masked_line' is the
+			-- better choice for an ordinary password prompt: it echoes a mask
+			-- character per keystroke, so the typist can see their input is
+			-- registering.
 		do
 			if is_stdin_console then
 				Result := hidden_line_from_console
 			else
 				Result := plain_line_from_redirected_input
 			end
+		ensure
+			line_exactly_when_succeeded: (Result /= Void) = last_operation_succeeded
+			error_cleared_on_success: last_operation_succeeded implies last_error_message.is_empty
+			error_set_on_failure: not last_operation_succeeded implies not last_error_message.is_empty
+		end
+
+	read_masked_line (a_mask: CHARACTER_32): detachable STRING_32
+			-- One line of standard input, echoed with `a_mask' - one copy per
+			-- character accepted - so the typist can see their keystrokes are
+			-- registering, without the console ever showing what was typed.
+			-- Takes the same two paths as `read_hidden_line', chosen the same
+			-- way:
+			--
+			-- Standard input is a console. `ENABLE_LINE_INPUT' and
+			-- `ENABLE_ECHO_INPUT' are cleared for the read, and this feature's C
+			-- half becomes the line editor: Backspace removes the last
+			-- character typed and erases its one on-screen mask; Enter ends the
+			-- line and prints a newline of its own, because the user's Enter was
+			-- not echoed either; Ctrl+C keeps working, exactly as it does for
+			-- `read_hidden_line'; a surrogate pair (most emoji, for instance) is
+			-- accepted, masked, and erased as the ONE character it represents,
+			-- never as two; every other non-character key - the arrows, the
+			-- function keys, and the like - is silently ignored. The previous
+			-- console mode is restored on every exit path, in C, the same way
+			-- `read_hidden_line' restores its own.
+			--
+			-- Standard input is redirected from a file or a pipe. This is
+			-- IDENTICAL to `read_hidden_line': a plain line, decoded as UTF-8,
+			-- no mask printed, no console mode touched. An installer's
+			-- verification script feeds passwords this way and must keep
+			-- working.
+			--
+			-- Void on end of input or on failure, NEVER a partial line - the
+			-- same contract `read_hidden_line' keeps. A line the user ended by
+			-- pressing Enter alone is the empty string, not Void.
+			--
+			-- Prefer this over `read_hidden_line' for an ordinary password
+			-- prompt. Larry, after using 1.1.0's fully-silent `read_hidden_line'
+			-- in an installer console: "I was surprised by not even have dots
+			-- for pw chars. That meant that I didn't know whether my keystrokes
+			-- were being registered. So, the dots would really help."
+		do
+			if is_stdin_console then
+				Result := masked_line_from_console (a_mask)
+			else
+				Result := plain_line_from_redirected_input
+			end
+		ensure
+			line_exactly_when_succeeded: (Result /= Void) = last_operation_succeeded
+			error_cleared_on_success: last_operation_succeeded implies last_error_message.is_empty
+			error_set_on_failure: not last_operation_succeeded implies not last_error_message.is_empty
+		end
+
+	read_masked_line_default: detachable STRING_32
+			-- `read_masked_line' with `a_mask' set to `'*'' - the ordinary case,
+			-- and the one the two-argument form exists to let a caller override.
+			-- See `read_masked_line'.
+		do
+			Result := read_masked_line ('*')
 		ensure
 			line_exactly_when_succeeded: (Result /= Void) = last_operation_succeeded
 			error_cleared_on_success: last_operation_succeeded implies last_error_message.is_empty
@@ -582,6 +648,52 @@ feature {NONE} -- Input Implementation
 			line_exactly_when_succeeded: (Result /= Void) = last_operation_succeeded
 		end
 
+	masked_line_from_console (a_mask: CHARACTER_32): detachable STRING_32
+			-- One line read from the console with `ENABLE_LINE_INPUT' and
+			-- `ENABLE_ECHO_INPUT' both cleared for the duration of the read and
+			-- restored immediately after it. `sc_read_masked_line' is the line
+			-- editor here - Backspace, Enter, the mask itself - because Windows
+			-- has no console mode that echoes a substitute character; see
+			-- `simple_console.h' for why that whole job has to live in C.
+		require
+			stdin_is_console: is_stdin_console
+		local
+			l_buffer: MANAGED_POINTER
+			l_count, i: INTEGER
+		do
+				-- The buffer is C heap on purpose, for the same reason as
+				-- `hidden_line_from_console': `c_sc_read_masked_line' is marked
+				-- `blocking' because it waits on the user, which lets a garbage
+				-- collection run - and move Eiffel objects - while C still holds
+				-- this address. Only a MANAGED_POINTER's memory does not move.
+			create l_buffer.make (Hidden_line_capacity * Utf_16_unit_bytes)
+			l_count := c_sc_read_masked_line (l_buffer.item, Hidden_line_capacity, a_mask.natural_32_code)
+			if l_count >= 0 then
+				Result := {UTF_CONVERTER}.utf_16_0_subpointer_to_string_32 (l_buffer, 0, l_count - 1, False)
+				last_operation_succeeded := True
+				last_error_message := ""
+				log_debug ("read_masked_line: console path, " + l_count.out + " code units")
+			else
+				last_operation_succeeded := False
+				last_error_message := "Failed to read a masked line from the console"
+				log_error (last_error_message)
+			end
+				-- The buffer held a secret. Overwrite it before letting go.
+			from
+				i := 0
+			until
+				i >= Hidden_line_capacity
+			loop
+				l_buffer.put_natural_16 (0, i * Utf_16_unit_bytes)
+				i := i + 1
+			end
+				-- Unlike `hidden_line_from_console', the newline is NOT printed
+				-- here: the C side already wrote it the moment it saw Enter,
+				-- alongside the mask characters it was already printing.
+		ensure
+			line_exactly_when_succeeded: (Result /= Void) = last_operation_succeeded
+		end
+
 	plain_line_from_redirected_input: detachable STRING_32
 			-- One line read the ordinary way from redirected standard input and
 			-- decoded as UTF-8. No console mode is touched on this path, and
@@ -759,6 +871,19 @@ feature {NONE} -- C externals (using simple_console.h)
 			-- accidental protection such an address relies on.
 		external "C blocking inline use %"simple_console.h%""
 		alias "return sc_read_hidden_line((void *)$a_buffer, (int)$a_capacity);"
+		end
+
+	c_sc_read_masked_line (a_buffer: POINTER; a_capacity: INTEGER; a_mask_cp: NATURAL_32): INTEGER
+			-- MARKED `blocking', for the same reason as `c_sc_read_hidden_line':
+			-- `ReadConsoleInputW' WAITS on the user, one key at a time, for as
+			-- long as a password takes to type. The same fleet law applies (proved
+			-- in simple_winhttp 0.1.1 and simple_encryption 2.1.1 on 2026-09-02):
+			-- a C external that waits must be marked `C blocking', and marking is
+			-- SAFE here only because `a_buffer' is a MANAGED_POINTER - C heap,
+			-- which no collection moves, and never the `base_address' of an
+			-- Eiffel SPECIAL.
+		external "C blocking inline use %"simple_console.h%""
+		alias "return sc_read_masked_line((void *)$a_buffer, (int)$a_capacity, (unsigned int)$a_mask_cp);"
 		end
 
 feature {NONE} -- Constants
