@@ -651,7 +651,7 @@ feature {NONE} -- Input Implementation
 	masked_line_from_console (a_mask: CHARACTER_32): detachable STRING_32
 			-- One line read from the console with `ENABLE_LINE_INPUT' and
 			-- `ENABLE_ECHO_INPUT' both cleared for the duration of the read and
-			-- restored immediately after it. `sc_read_masked_line' is the line
+			-- restored immediately after it. `scon_read_masked_line' is the line
 			-- editor here - Backspace, Enter, the mask itself - because Windows
 			-- has no console mode that echoes a substitute character; see
 			-- `simple_console.h' for why that whole job has to live in C.
@@ -769,77 +769,77 @@ feature {NONE} -- C externals (using simple_console.h)
 
 	c_sc_set_color (a_color: INTEGER): INTEGER
 		external "C inline use %"simple_console.h%""
-		alias "return sc_set_color($a_color);"
+		alias "return scon_set_color($a_color);"
 		end
 
 	c_sc_set_foreground (a_color: INTEGER): INTEGER
 		external "C inline use %"simple_console.h%""
-		alias "return sc_set_foreground($a_color);"
+		alias "return scon_set_foreground($a_color);"
 		end
 
 	c_sc_set_background (a_color: INTEGER): INTEGER
 		external "C inline use %"simple_console.h%""
-		alias "return sc_set_background($a_color);"
+		alias "return scon_set_background($a_color);"
 		end
 
 	c_sc_reset_color: INTEGER
 		external "C inline use %"simple_console.h%""
-		alias "return sc_reset_color();"
+		alias "return scon_reset_color();"
 		end
 
 	c_sc_set_cursor (a_x, a_y: INTEGER): INTEGER
 		external "C inline use %"simple_console.h%""
-		alias "return sc_set_cursor($a_x, $a_y);"
+		alias "return scon_set_cursor($a_x, $a_y);"
 		end
 
 	c_sc_get_cursor_x: INTEGER
 		external "C inline use %"simple_console.h%""
-		alias "return sc_get_cursor_x();"
+		alias "return scon_get_cursor_x();"
 		end
 
 	c_sc_get_cursor_y: INTEGER
 		external "C inline use %"simple_console.h%""
-		alias "return sc_get_cursor_y();"
+		alias "return scon_get_cursor_y();"
 		end
 
 	c_sc_get_width: INTEGER
 		external "C inline use %"simple_console.h%""
-		alias "return sc_get_width();"
+		alias "return scon_get_width();"
 		end
 
 	c_sc_get_height: INTEGER
 		external "C inline use %"simple_console.h%""
-		alias "return sc_get_height();"
+		alias "return scon_get_height();"
 		end
 
 	c_sc_clear: INTEGER
 		external "C inline use %"simple_console.h%""
-		alias "return sc_clear();"
+		alias "return scon_clear();"
 		end
 
 	c_sc_clear_line: INTEGER
 		external "C inline use %"simple_console.h%""
-		alias "return sc_clear_line();"
+		alias "return scon_clear_line();"
 		end
 
 	c_sc_set_title (a_title: POINTER): INTEGER
 		external "C inline use %"simple_console.h%""
-		alias "return sc_set_title((const char*)$a_title);"
+		alias "return scon_set_title((const char*)$a_title);"
 		end
 
 	c_sc_show_cursor (a_visible: INTEGER): INTEGER
 		external "C inline use %"simple_console.h%""
-		alias "return sc_show_cursor($a_visible);"
+		alias "return scon_show_cursor($a_visible);"
 		end
 
 	c_sc_is_cursor_visible: INTEGER
 		external "C inline use %"simple_console.h%""
-		alias "return sc_is_cursor_visible();"
+		alias "return scon_is_cursor_visible();"
 		end
 
 	c_sc_has_real_console: INTEGER
 		external "C inline use %"simple_console.h%""
-		alias "return sc_has_real_console();"
+		alias "return scon_has_real_console();"
 		end
 
 	c_sc_is_stdin_console: INTEGER
@@ -848,7 +848,7 @@ feature {NONE} -- C externals (using simple_console.h)
 			-- anything, and marking a call this short would cost two runtime
 			-- transitions to save nothing.
 		external "C inline use %"simple_console.h%""
-		alias "return sc_is_stdin_console();"
+		alias "return scon_is_stdin_console();"
 		end
 
 	c_sc_read_hidden_line (a_buffer: POINTER; a_capacity: INTEGER): INTEGER
@@ -870,7 +870,7 @@ feature {NONE} -- C externals (using simple_console.h)
 			-- `base_address' of an Eiffel SPECIAL: the marker removes exactly the
 			-- accidental protection such an address relies on.
 		external "C blocking inline use %"simple_console.h%""
-		alias "return sc_read_hidden_line((void *)$a_buffer, (int)$a_capacity);"
+		alias "return scon_read_hidden_line((void *)$a_buffer, (int)$a_capacity);"
 		end
 
 	c_sc_read_masked_line (a_buffer: POINTER; a_capacity: INTEGER; a_mask_cp: NATURAL_32): INTEGER
@@ -883,7 +883,7 @@ feature {NONE} -- C externals (using simple_console.h)
 			-- which no collection moves, and never the `base_address' of an
 			-- Eiffel SPECIAL.
 		external "C blocking inline use %"simple_console.h%""
-		alias "return sc_read_masked_line((void *)$a_buffer, (int)$a_capacity, (unsigned int)$a_mask_cp);"
+		alias "return scon_read_masked_line((void *)$a_buffer, (int)$a_capacity, (unsigned int)$a_mask_cp);"
 		end
 
 feature {NONE} -- Constants

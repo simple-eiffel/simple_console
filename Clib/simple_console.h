@@ -15,58 +15,58 @@
 
 #include <windows.h>
 
-static int sc_set_color(int color) {
+static int scon_set_color(int color) {
     return SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), (WORD)color) ? 1 : 0;
 }
 
-static int sc_set_foreground(int color) {
+static int scon_set_foreground(int color) {
     CONSOLE_SCREEN_BUFFER_INFO csbi;
     HANDLE h = GetStdHandle(STD_OUTPUT_HANDLE);
     if (!GetConsoleScreenBufferInfo(h, &csbi)) return 0;
     return SetConsoleTextAttribute(h, (csbi.wAttributes & 0xF0) | (color & 0x0F)) ? 1 : 0;
 }
 
-static int sc_set_background(int color) {
+static int scon_set_background(int color) {
     CONSOLE_SCREEN_BUFFER_INFO csbi;
     HANDLE h = GetStdHandle(STD_OUTPUT_HANDLE);
     if (!GetConsoleScreenBufferInfo(h, &csbi)) return 0;
     return SetConsoleTextAttribute(h, (csbi.wAttributes & 0x0F) | ((color & 0x0F) << 4)) ? 1 : 0;
 }
 
-static int sc_reset_color(void) {
+static int scon_reset_color(void) {
     return SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), 7) ? 1 : 0;
 }
 
-static int sc_set_cursor(int x, int y) {
+static int scon_set_cursor(int x, int y) {
     COORD pos; pos.X = (SHORT)x; pos.Y = (SHORT)y;
     return SetConsoleCursorPosition(GetStdHandle(STD_OUTPUT_HANDLE), pos) ? 1 : 0;
 }
 
-static int sc_get_cursor_x(void) {
+static int scon_get_cursor_x(void) {
     CONSOLE_SCREEN_BUFFER_INFO csbi;
     if (!GetConsoleScreenBufferInfo(GetStdHandle(STD_OUTPUT_HANDLE), &csbi)) return -1;
     return (int)csbi.dwCursorPosition.X;
 }
 
-static int sc_get_cursor_y(void) {
+static int scon_get_cursor_y(void) {
     CONSOLE_SCREEN_BUFFER_INFO csbi;
     if (!GetConsoleScreenBufferInfo(GetStdHandle(STD_OUTPUT_HANDLE), &csbi)) return -1;
     return (int)csbi.dwCursorPosition.Y;
 }
 
-static int sc_get_width(void) {
+static int scon_get_width(void) {
     CONSOLE_SCREEN_BUFFER_INFO csbi;
     if (!GetConsoleScreenBufferInfo(GetStdHandle(STD_OUTPUT_HANDLE), &csbi)) return 80;
     return (int)(csbi.srWindow.Right - csbi.srWindow.Left + 1);
 }
 
-static int sc_get_height(void) {
+static int scon_get_height(void) {
     CONSOLE_SCREEN_BUFFER_INFO csbi;
     if (!GetConsoleScreenBufferInfo(GetStdHandle(STD_OUTPUT_HANDLE), &csbi)) return 25;
     return (int)(csbi.srWindow.Bottom - csbi.srWindow.Top + 1);
 }
 
-static int sc_clear(void) {
+static int scon_clear(void) {
     CONSOLE_SCREEN_BUFFER_INFO csbi;
     HANDLE h = GetStdHandle(STD_OUTPUT_HANDLE);
     DWORD written;
@@ -80,7 +80,7 @@ static int sc_clear(void) {
     return 1;
 }
 
-static int sc_clear_line(void) {
+static int scon_clear_line(void) {
     CONSOLE_SCREEN_BUFFER_INFO csbi;
     HANDLE h = GetStdHandle(STD_OUTPUT_HANDLE);
     DWORD written;
@@ -92,11 +92,11 @@ static int sc_clear_line(void) {
     return 1;
 }
 
-static int sc_set_title(const char* title) {
+static int scon_set_title(const char* title) {
     return SetConsoleTitleA(title) ? 1 : 0;
 }
 
-static int sc_show_cursor(int visible) {
+static int scon_show_cursor(int visible) {
     CONSOLE_CURSOR_INFO cci;
     HANDLE h = GetStdHandle(STD_OUTPUT_HANDLE);
     if (!GetConsoleCursorInfo(h, &cci)) return 0;
@@ -104,13 +104,13 @@ static int sc_show_cursor(int visible) {
     return SetConsoleCursorInfo(h, &cci) ? 1 : 0;
 }
 
-static int sc_is_cursor_visible(void) {
+static int scon_is_cursor_visible(void) {
     CONSOLE_CURSOR_INFO cci;
     if (!GetConsoleCursorInfo(GetStdHandle(STD_OUTPUT_HANDLE), &cci)) return 1;
     return cci.bVisible ? 1 : 0;
 }
 
-static int sc_has_real_console(void) {
+static int scon_has_real_console(void) {
     DWORD mode;
     HANDLE h = GetStdHandle(STD_OUTPUT_HANDLE);
     if (h == INVALID_HANDLE_VALUE || h == NULL) return 0;
@@ -118,13 +118,13 @@ static int sc_has_real_console(void) {
 }
 
 /* Key reading with modifier detection */
-static int sc_last_char = 0;
-static int sc_last_shift = 0;
-static int sc_last_ctrl = 0;
-static int sc_last_is_enter = 0;
-static int sc_last_is_backspace = 0;
+static int scon_last_char = 0;
+static int scon_last_shift = 0;
+static int scon_last_ctrl = 0;
+static int scon_last_is_enter = 0;
+static int scon_last_is_backspace = 0;
 
-static int sc_read_key(void) {
+static int scon_read_key(void) {
     HANDLE hStdin = GetStdHandle(STD_INPUT_HANDLE);
     INPUT_RECORD ir;
     DWORD numRead;
@@ -148,15 +148,15 @@ static int sc_read_key(void) {
             DWORD ctrl = ir.Event.KeyEvent.dwControlKeyState;
             WCHAR ch = ir.Event.KeyEvent.uChar.UnicodeChar;
 
-            sc_last_shift = (ctrl & SHIFT_PRESSED) ? 1 : 0;
-            sc_last_ctrl = (ctrl & (LEFT_CTRL_PRESSED | RIGHT_CTRL_PRESSED)) ? 1 : 0;
-            sc_last_is_enter = (vk == VK_RETURN) ? 1 : 0;
-            sc_last_is_backspace = (vk == VK_BACK) ? 1 : 0;
+            scon_last_shift = (ctrl & SHIFT_PRESSED) ? 1 : 0;
+            scon_last_ctrl = (ctrl & (LEFT_CTRL_PRESSED | RIGHT_CTRL_PRESSED)) ? 1 : 0;
+            scon_last_is_enter = (vk == VK_RETURN) ? 1 : 0;
+            scon_last_is_backspace = (vk == VK_BACK) ? 1 : 0;
 
             if (ch != 0 && ch < 256) {
-                sc_last_char = (int)ch;
+                scon_last_char = (int)ch;
             } else {
-                sc_last_char = 0;
+                scon_last_char = 0;
             }
 
             SetConsoleMode(hStdin, oldMode);
@@ -165,13 +165,13 @@ static int sc_read_key(void) {
     }
 }
 
-static int sc_get_last_char(void) { return sc_last_char; }
-static int sc_get_last_shift(void) { return sc_last_shift; }
-static int sc_get_last_ctrl(void) { return sc_last_ctrl; }
-static int sc_get_last_is_enter(void) { return sc_last_is_enter; }
-static int sc_get_last_is_backspace(void) { return sc_last_is_backspace; }
+static int scon_get_last_char(void) { return scon_last_char; }
+static int scon_get_last_shift(void) { return scon_last_shift; }
+static int scon_get_last_ctrl(void) { return scon_last_ctrl; }
+static int scon_get_last_is_enter(void) { return scon_last_is_enter; }
+static int scon_get_last_is_backspace(void) { return scon_last_is_backspace; }
 
-static int sc_has_pending_input(void) {
+static int scon_has_pending_input(void) {
     /* Check if more input is waiting (for paste detection) */
     HANDLE hStdin = GetStdHandle(STD_INPUT_HANDLE);
     DWORD numEvents = 0;
@@ -182,10 +182,10 @@ static int sc_has_pending_input(void) {
 
 /* ============ HIDDEN (NO-ECHO) LINE INPUT ============
  *
- * sc_is_stdin_console  - is STDIN a real console, not a file or a pipe?
- * sc_read_hidden_line  - read ONE line from the console with echo off.
+ * scon_is_stdin_console  - is STDIN a real console, not a file or a pipe?
+ * scon_read_hidden_line  - read ONE line from the console with echo off.
  *
- * The whole mode dance lives inside sc_read_hidden_line, in C, so that the
+ * The whole mode dance lives inside scon_read_hidden_line, in C, so that the
  * caller's console mode is restored on EVERY exit path. A console left
  * without ENABLE_ECHO_INPUT is a console the user cannot see themselves
  * type in again, for the rest of the session - so the restore must not be
@@ -193,7 +193,7 @@ static int sc_has_pending_input(void) {
  * rescue clause running.
  */
 
-static int sc_is_stdin_console(void) {
+static int scon_is_stdin_console(void) {
     DWORD mode;
     HANDLE h = GetStdHandle(STD_INPUT_HANDLE);
     if (h == INVALID_HANDLE_VALUE || h == NULL) return 0;
@@ -214,7 +214,7 @@ static int sc_is_stdin_console(void) {
  * STDIN is not a console - and in that case stores nothing, so a caller can
  * never mistake a partial read for a line.
  */
-static int sc_read_hidden_line(void* a_buffer, int a_capacity) {
+static int scon_read_hidden_line(void* a_buffer, int a_capacity) {
     HANDLE h;
     DWORD old_mode = 0;
     DWORD units_read = 0;
@@ -255,7 +255,7 @@ static int sc_read_hidden_line(void* a_buffer, int a_capacity) {
 
 /* ============ MASKED (VISIBLE-DOTS) LINE INPUT ============
  *
- * sc_read_masked_line - like sc_read_hidden_line, but prints one copy of a
+ * scon_read_masked_line - like scon_read_hidden_line, but prints one copy of a
  * caller-chosen mask character for every character accepted, so the typist
  * can see their keystrokes are registering without the console ever
  * showing what was typed. Added after Larry used 1.1.0's fully-silent
@@ -263,15 +263,15 @@ static int sc_read_hidden_line(void* a_buffer, int a_capacity) {
  * have dots for pw chars. That meant that I didn't know whether my
  * keystrokes were being registered. So, the dots would really help."
  *
- * `sc_read_hidden_line' hands the whole job to ReadConsoleW with only
+ * `scon_read_hidden_line' hands the whole job to ReadConsoleW with only
  * ENABLE_ECHO_INPUT cleared, so Windows' own line editor still does
  * Backspace and Enter for it. This function cannot do that - Windows has no
  * mode that echoes a substitute character - so it clears ENABLE_LINE_INPUT
  * too and becomes the line editor itself, reading one key event at a time
- * with ReadConsoleInputW the way `sc_read_key' above does for a single key.
+ * with ReadConsoleInputW the way `scon_read_key' above does for a single key.
  * It is deliberately the ONLY place that decides what counts as a
  * character, what Backspace erases, and when the line ends - the same
- * restore-on-every-exit-path discipline as `sc_read_hidden_line', for the
+ * restore-on-every-exit-path discipline as `scon_read_hidden_line', for the
  * same reason: a console left without its saved mode is one the user
  * cannot see themselves type into again for the rest of the session.
  *
@@ -294,9 +294,9 @@ static int sc_read_hidden_line(void* a_buffer, int a_capacity) {
  * one mask is printed for the pair, and one Backspace erases both units and
  * the one mask together. ENABLE_PROCESSED_INPUT is left exactly as
  * `GetConsoleMode' found it, so Ctrl+C keeps working precisely the way it
- * does for `sc_read_hidden_line'.
+ * does for `scon_read_hidden_line'.
  */
-static int sc_read_masked_line(void* a_buffer, int a_capacity, unsigned int a_mask_cp) {
+static int scon_read_masked_line(void* a_buffer, int a_capacity, unsigned int a_mask_cp) {
     HANDLE hIn, hOut;
     DWORD old_mode = 0;
     DWORD num_read = 0;
@@ -421,77 +421,77 @@ static int sc_read_masked_line(void* a_buffer, int a_capacity, unsigned int a_ma
 #include <string.h>
 
 /* Track current state for queries */
-static int sc_current_fg = 7;  /* Default: gray */
-static int sc_current_bg = 0;  /* Default: black */
-static int sc_cursor_visible = 1;
-static int sc_cursor_x = 0;
-static int sc_cursor_y = 0;
+static int scon_current_fg = 7;  /* Default: gray */
+static int scon_current_bg = 0;  /* Default: black */
+static int scon_cursor_visible = 1;
+static int scon_cursor_x = 0;
+static int scon_cursor_y = 0;
 
 /* Map Windows color codes (0-15) to ANSI SGR codes */
 /* Windows: 0=Black,1=DarkBlue,2=DarkGreen,3=DarkCyan,4=DarkRed,5=DarkMagenta,
             6=DarkYellow,7=Gray,8=DarkGray,9=Blue,10=Green,11=Cyan,12=Red,
             13=Magenta,14=Yellow,15=White */
-static const int sc_win_to_ansi_fg[] = {
+static const int scon_win_to_ansi_fg[] = {
     30, 34, 32, 36, 31, 35, 33, 37,  /* 0-7: dark colors */
     90, 94, 92, 96, 91, 95, 93, 97   /* 8-15: bright colors */
 };
-static const int sc_win_to_ansi_bg[] = {
+static const int scon_win_to_ansi_bg[] = {
     40, 44, 42, 46, 41, 45, 43, 47,  /* 0-7: dark backgrounds */
     100, 104, 102, 106, 101, 105, 103, 107  /* 8-15: bright backgrounds */
 };
 
-static int sc_set_color(int color) {
+static int scon_set_color(int color) {
     int fg = color & 0x0F;
     int bg = (color >> 4) & 0x0F;
-    sc_current_fg = fg;
-    sc_current_bg = bg;
-    printf("\033[%d;%dm", sc_win_to_ansi_fg[fg], sc_win_to_ansi_bg[bg]);
+    scon_current_fg = fg;
+    scon_current_bg = bg;
+    printf("\033[%d;%dm", scon_win_to_ansi_fg[fg], scon_win_to_ansi_bg[bg]);
     fflush(stdout);
     return 1;
 }
 
-static int sc_set_foreground(int color) {
+static int scon_set_foreground(int color) {
     if (color < 0 || color > 15) return 0;
-    sc_current_fg = color;
-    printf("\033[%dm", sc_win_to_ansi_fg[color]);
+    scon_current_fg = color;
+    printf("\033[%dm", scon_win_to_ansi_fg[color]);
     fflush(stdout);
     return 1;
 }
 
-static int sc_set_background(int color) {
+static int scon_set_background(int color) {
     if (color < 0 || color > 15) return 0;
-    sc_current_bg = color;
-    printf("\033[%dm", sc_win_to_ansi_bg[color]);
+    scon_current_bg = color;
+    printf("\033[%dm", scon_win_to_ansi_bg[color]);
     fflush(stdout);
     return 1;
 }
 
-static int sc_reset_color(void) {
-    sc_current_fg = 7;
-    sc_current_bg = 0;
+static int scon_reset_color(void) {
+    scon_current_fg = 7;
+    scon_current_bg = 0;
     printf("\033[0m");
     fflush(stdout);
     return 1;
 }
 
-static int sc_set_cursor(int x, int y) {
-    sc_cursor_x = x;
-    sc_cursor_y = y;
+static int scon_set_cursor(int x, int y) {
+    scon_cursor_x = x;
+    scon_cursor_y = y;
     /* ANSI is 1-based, our API is 0-based */
     printf("\033[%d;%dH", y + 1, x + 1);
     fflush(stdout);
     return 1;
 }
 
-static int sc_get_cursor_x(void) {
-    return sc_cursor_x;
+static int scon_get_cursor_x(void) {
+    return scon_cursor_x;
 }
 
-static int sc_get_cursor_y(void) {
-    return sc_cursor_y;
+static int scon_get_cursor_y(void) {
+    return scon_cursor_y;
 }
 
-static int sc_get_width(void) {
+static int scon_get_width(void) {
     struct winsize ws;
     if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &ws) == 0 && ws.ws_col > 0) {
         return ws.ws_col;
@@ -502,7 +502,7 @@ static int sc_get_width(void) {
     return 80;
 }
 
-static int sc_get_height(void) {
+static int scon_get_height(void) {
     struct winsize ws;
     if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &ws) == 0 && ws.ws_row > 0) {
         return ws.ws_row;
@@ -513,31 +513,31 @@ static int sc_get_height(void) {
     return 25;
 }
 
-static int sc_clear(void) {
+static int scon_clear(void) {
     /* Clear screen and move cursor to home */
     printf("\033[2J\033[H");
     fflush(stdout);
-    sc_cursor_x = 0;
-    sc_cursor_y = 0;
+    scon_cursor_x = 0;
+    scon_cursor_y = 0;
     return 1;
 }
 
-static int sc_clear_line(void) {
+static int scon_clear_line(void) {
     /* Clear from cursor to end of line */
     printf("\033[K");
     fflush(stdout);
     return 1;
 }
 
-static int sc_set_title(const char* title) {
+static int scon_set_title(const char* title) {
     /* OSC sequence to set terminal title */
     printf("\033]0;%s\007", title);
     fflush(stdout);
     return 1;
 }
 
-static int sc_show_cursor(int visible) {
-    sc_cursor_visible = visible;
+static int scon_show_cursor(int visible) {
+    scon_cursor_visible = visible;
     if (visible) {
         printf("\033[?25h");  /* Show cursor */
     } else {
@@ -547,11 +547,11 @@ static int sc_show_cursor(int visible) {
     return 1;
 }
 
-static int sc_is_cursor_visible(void) {
-    return sc_cursor_visible;
+static int scon_is_cursor_visible(void) {
+    return scon_cursor_visible;
 }
 
-static int sc_has_real_console(void) {
+static int scon_has_real_console(void) {
     /* Check if stdout is a terminal */
     return isatty(STDOUT_FILENO) ? 1 : 0;
 }
@@ -567,11 +567,11 @@ static int sc_has_real_console(void) {
  * written for parity and has not been run.
  */
 
-static int sc_is_stdin_console(void) {
+static int scon_is_stdin_console(void) {
     return isatty(STDIN_FILENO) ? 1 : 0;
 }
 
-static int sc_read_hidden_line(void* a_buffer, int a_capacity) {
+static int scon_read_hidden_line(void* a_buffer, int a_capacity) {
     unsigned short* out = (unsigned short*)a_buffer;
     struct termios old_t, new_t;
     unsigned char bytes[4096];
@@ -634,10 +634,10 @@ static int sc_read_hidden_line(void* a_buffer, int a_capacity) {
     return n;
 }
 
-/* POSIX parity for `sc_read_masked_line'. Same contract: one mask per
+/* POSIX parity for `scon_read_masked_line'. Same contract: one mask per
  * accepted character, Backspace erases the last character AND its one
  * on-screen mask, Enter ends the line. ICANON is cleared as well as ECHO -
- * unlike `sc_read_hidden_line' above, which needs only ECHO off because
+ * unlike `scon_read_hidden_line' above, which needs only ECHO off because
  * Windows' own line editor keeps working underneath it, this function must
  * become the line editor itself, one byte at a time, the same way its
  * Windows counterpart becomes one event at a time. ISIG is left alone, so
@@ -646,7 +646,7 @@ static int sc_read_hidden_line(void* a_buffer, int a_capacity) {
  * NOTE: simple_console ships and is exercised on Windows. This branch is
  * written for parity and has not been run.
  */
-static int sc_read_masked_line(void* a_buffer, int a_capacity, unsigned int a_mask_cp) {
+static int scon_read_masked_line(void* a_buffer, int a_capacity, unsigned int a_mask_cp) {
     unsigned short* out = (unsigned short*)a_buffer;
     struct termios old_t, new_t;
     unsigned char mask_utf8[4];
@@ -712,7 +712,7 @@ static int sc_read_masked_line(void* a_buffer, int a_capacity, unsigned int a_ma
             /* Other control bytes (Tab, Esc, Ctrl+letter): not a character. */
         } else {
             /* Start of one UTF-8 sequence - decode it, the same bit masks
-               `sc_read_hidden_line' above decodes a whole line of at once. */
+               `scon_read_hidden_line' above decodes a whole line of at once. */
             unsigned int cp = b;
             int extra;
             unsigned char cont;

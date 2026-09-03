@@ -88,6 +88,26 @@ captured output. `--masked-line-demo` on the test executable is the manual
 fallback and what to look for if `pywinpty` is not available; the README
 says what to look for there too.
 
+### Changed
+
+- `Clib/simple_console.h`'s C function prefix changed from `sc_` to `scon_`
+  (all 25 functions, both the Windows and POSIX-parity branches, plus the
+  internal key-state and terminal-state statics that carried it: `sc_last_char`
+  and its four siblings on Windows; `sc_current_fg`, `sc_current_bg`,
+  `sc_cursor_visible`, `sc_cursor_x`, `sc_cursor_y`, and the two ANSI lookup
+  tables on POSIX). `D:/prod/simple_cairo/Clib/*.h` uses the same `sc_` prefix
+  for roughly 180 unrelated functions, and `sc_clear` exists in both headers
+  with different signatures; EiffelStudio can bucket several classes'
+  `external "C inline use <header>"` code into one generated C translation
+  unit, so any system linking both libraries - simple_chat's test target,
+  server side on simple_console and client side on simple_cairo - could put
+  both headers in the same file and fail to compile on the duplicate symbol,
+  which happened in `simple_chat_wt_composer` on 2026-09-03. simple_console is
+  the smaller of the two libraries, with four consumers, so it is the one that
+  changes prefix; simple_cairo is untouched. Every `alias` string in
+  `src/simple_console.e` that names a C function was updated to match; no
+  Eiffel feature name, signature, or observable behavior changed.
+
 ## [1.1.0] - 2026-09-03
 
 ### Added
