@@ -775,11 +775,14 @@ feature {NONE} -- Hidden and Masked Line Input: implementation
 					l_f.put_string (a_input)
 					l_f.close
 
-						-- The whole command is wrapped in one more pair of
-						-- quotes: cmd.exe strips the outermost pair, leaving
-						-- each path quoted.
-					l_cmd := "%"%"" + l_exe + "%" " + a_option +
-						" < %"" + l_in + "%" > %"" + l_out + "%"%""
+					l_cmd := "%"" + l_exe + "%" " + a_option +
+						" < %"" + l_in + "%" > %"" + l_out + "%""
+					if {PLATFORM}.is_windows then
+							-- cmd.exe strips the outermost pair of quotes, so one
+							-- more pair leaves each path quoted. A POSIX shell
+							-- would read that as a single file name.
+						l_cmd := "%"" + l_cmd + "%""
+					end
 					create l_env
 					l_env.system (l_cmd)
 

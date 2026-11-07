@@ -441,6 +441,7 @@ static const int scon_win_to_ansi_bg[] = {
 };
 
 static int scon_set_color(int color) {
+    if (!isatty(STDOUT_FILENO)) return 0;
     int fg = color & 0x0F;
     int bg = (color >> 4) & 0x0F;
     scon_current_fg = fg;
@@ -451,6 +452,7 @@ static int scon_set_color(int color) {
 }
 
 static int scon_set_foreground(int color) {
+    if (!isatty(STDOUT_FILENO)) return 0;
     if (color < 0 || color > 15) return 0;
     scon_current_fg = color;
     printf("\033[%dm", scon_win_to_ansi_fg[color]);
@@ -459,6 +461,7 @@ static int scon_set_foreground(int color) {
 }
 
 static int scon_set_background(int color) {
+    if (!isatty(STDOUT_FILENO)) return 0;
     if (color < 0 || color > 15) return 0;
     scon_current_bg = color;
     printf("\033[%dm", scon_win_to_ansi_bg[color]);
@@ -467,6 +470,7 @@ static int scon_set_background(int color) {
 }
 
 static int scon_reset_color(void) {
+    if (!isatty(STDOUT_FILENO)) return 0;
     scon_current_fg = 7;
     scon_current_bg = 0;
     printf("\033[0m");
@@ -475,6 +479,7 @@ static int scon_reset_color(void) {
 }
 
 static int scon_set_cursor(int x, int y) {
+    if (!isatty(STDOUT_FILENO)) return 0;
     scon_cursor_x = x;
     scon_cursor_y = y;
     /* ANSI is 1-based, our API is 0-based */
@@ -514,6 +519,7 @@ static int scon_get_height(void) {
 }
 
 static int scon_clear(void) {
+    if (!isatty(STDOUT_FILENO)) return 0;
     /* Clear screen and move cursor to home */
     printf("\033[2J\033[H");
     fflush(stdout);
@@ -523,6 +529,7 @@ static int scon_clear(void) {
 }
 
 static int scon_clear_line(void) {
+    if (!isatty(STDOUT_FILENO)) return 0;
     /* Clear from cursor to end of line */
     printf("\033[K");
     fflush(stdout);
@@ -530,6 +537,7 @@ static int scon_clear_line(void) {
 }
 
 static int scon_set_title(const char* title) {
+    if (!isatty(STDOUT_FILENO)) return 0;
     /* OSC sequence to set terminal title */
     printf("\033]0;%s\007", title);
     fflush(stdout);
@@ -537,6 +545,7 @@ static int scon_set_title(const char* title) {
 }
 
 static int scon_show_cursor(int visible) {
+    if (!isatty(STDOUT_FILENO)) return 0;
     scon_cursor_visible = visible;
     if (visible) {
         printf("\033[?25h");  /* Show cursor */
