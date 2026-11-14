@@ -27,6 +27,10 @@ Set the environment variable (one-time setup for all simple_* libraries):
 ```
 SIMPLE_EIFFEL=D:\prod
 ```
+On macOS or Linux:
+```bash
+export SIMPLE_EIFFEL=$HOME/simple_eiffel
+```
 
 ## Quick Start
 
@@ -101,7 +105,8 @@ Use `read_hidden_line` where even the keystroke COUNT should stay
 unseen - a shared or recorded screen. Use `read_masked_line` for an ordinary
 password prompt.
 
-- **Standard input is a console.**
+- **Standard input is a console.** (The console modes below are Windows';
+  on macOS and Linux the same features use termios.)
   - `read_hidden_line` clears `ENABLE_ECHO_INPUT` for the duration of the
     read, so nothing appears on screen as the user types. `ENABLE_LINE_INPUT`
     is kept, so Windows' own line editor still handles Backspace and Enter;
@@ -207,9 +212,9 @@ Black, Dark_blue, Dark_green, Dark_cyan, Dark_red, Dark_magenta, Dark_yellow, Gr
 
 ## Platform Support
 
-- Windows only (uses Win32 API). The C layer carries a POSIX branch for
-  parity, `read_hidden_line` and `read_masked_line` included, but it is not
-  exercised.
+- Windows (Win32 console API), macOS and Linux (ANSI codes and termios).
+  On macOS and Linux, `cursor_x`/`cursor_y` report the last position you
+  set. Screen calls fail when output is not a terminal.
 
 ## License
 
